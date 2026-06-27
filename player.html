@@ -268,7 +268,7 @@
             }
         }
 
-        // --- UTILS & CONTROLS (Kept exactly as your original code) ---
+        // --- UTILS & CONTROLS ---
         function updateStatus(msg) {
             statusBadge.textContent = msg;
             debugStatus.textContent = msg;
@@ -286,16 +286,19 @@
             updateStatus(`Error`);
         }
 
-        // The rest of your event listeners (Play, Mute, Seek, Rotation, Fullscreen) 
-        // are wired exactly as they were in your template.
+        // DOM Elements for Controls
         const playBtn = document.getElementById('play-btn');
         const muteBtn = document.getElementById('mute-btn');
         const volumeSlider = document.getElementById('volume-slider');
         const currentTimeEl = document.getElementById('current-time');
         const durationEl = document.getElementById('duration');
+        const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const progressThumb = document.getElementById('progress-thumb');
-        
+        const bufferedBar = document.getElementById('buffered-bar');
+        const debugBuffer = document.getElementById('debug-buffer');
+
+        // --- PLAYBACK CONTROLS ---
         playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
         document.getElementById('middle-click-overlay').addEventListener('click', () => video.paused ? video.play() : video.pause());
         
@@ -304,22 +307,77 @@
             lucide.createIcons();
             updateStatus('Playing');
         });
+        
         video.addEventListener('pause', () => {
             playBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6 fill-current"></i>';
             lucide.createIcons();
             updateStatus('Paused');
         });
 
+        // --- VOLUME ---
         muteBtn.addEventListener('click', () => { video.muted = !video.muted; });
         volumeSlider.addEventListener('input', e => { video.muted = false; video.volume = e.target.value; });
-        
+        video.addEventListener('volumechange', () => {
+            volumeSlider.value = video.muted ? 0 : video.volume;
+            let icon = 'volume-x';
+            if (!video.muted) {
+                if (video.volume > 0.5) icon = 'volume-2';
+                else if (video.volume > 0) icon = 'volume-1';
+            }
+            muteBtn.innerHTML = `<i data-lucide="${icon}" class="w-6 h-6"></i>`;
+            lucide.createIcons();
+        });
+
+        // --- SEEKING & DRAGGING (Fixed) ---
+        let isDragging = false;
+
+        function handleSeek(e) {
+            if (!video.duration) return;
+            const rect = progressContainer.getBoundingClientRect();
+            let pos = (e.clientX - rect.left) / rect.width;
+            pos = Math.max(0, Math.min(1, pos));
+            const seekTime = pos * video.duration;
+            video.currentTime = seekTime;
+            
+            progressBar.style.width = `${pos * 100}%`;
+            progressThumb.style.left = `${pos * 100}%`;
+            currentTimeEl.textContent = formatTime(seekTime);
+        }
+
+        progressContainer.addEventListener('mousedown', e => { isDragging = true; handleSeek(e); });
+        document.addEventListener('mousemove', e => { if (isDragging) handleSeek(e); });
+        document.addEventListener('mouseup', () => { isDragging = false; });
+
+        // --- TIME & BUFFER UPDATES (Fixed) ---
         video.addEventListener('timeupdate', () => {
+            if (isDragging) return; // Prevent fighting the user's drag!
+            
             const progress = (video.currentTime / video.duration) * 100;
             progressBar.style.width = `${progress}%`;
             progressThumb.style.left = `${progress}%`;
             currentTimeEl.textContent = formatTime(video.currentTime);
             if (video.duration) durationEl.textContent = formatTime(video.duration);
+            
+            updateBuffer();
         });
+
+        function updateBuffer() {
+            if (!video.duration || !video.buffered || !video.buffered.length) {
+                debugBuffer.textContent = '0.00s';
+                return;
+            }
+            let bufferedEnd = video.currentTime;
+            // Find the buffer range that contains our current playhead
+            for (let i = 0; i < video.buffered.length; i++) {
+                if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) {
+                    bufferedEnd = video.buffered.end(i);
+                    const percentage = (bufferedEnd / video.duration) * 100;
+                    bufferedBar.style.width = `${percentage}%`;
+                    break;
+                }
+            }
+            debugBuffer.textContent = (bufferedEnd - video.currentTime).toFixed(2) + 's';
+        }
 
         function formatTime(time) {
             if (isNaN(time)) return "00:00";
@@ -327,6 +385,7 @@
             return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
         }
 
+        // --- QUALITY CONTROLS ---
         function generateQualityControls(levels) {
             const qualityOptions = document.getElementById('quality-options');
             qualityOptions.innerHTML = '';
@@ -334,7 +393,11 @@
             const autoBtn = document.createElement('button');
             autoBtn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50';
             autoBtn.innerHTML = 'Auto';
-            autoBtn.onclick = () => { hls.currentLevel = -1; document.getElementById('quality-menu').classList.add('hidden'); };
+            autoBtn.onclick = () => { 
+                hls.currentLevel = -1; 
+                document.getElementById('current-quality-label').textContent = 'Auto';
+                document.getElementById('quality-menu').classList.add('hidden'); 
+            };
             qualityOptions.appendChild(autoBtn);
 
             levels.forEach((level, index) => {
@@ -342,14 +405,42 @@
                 const res = Math.min(level.width, level.height);
                 btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800';
                 btn.innerHTML = `${res}p`;
-                btn.onclick = () => { hls.currentLevel = index; document.getElementById('quality-menu').classList.add('hidden'); };
+                btn.onclick = () => { 
+                    hls.currentLevel = index; 
+                    document.getElementById('current-quality-label').textContent = `${res}p`;
+                    document.getElementById('quality-menu').classList.add('hidden'); 
+                };
                 qualityOptions.appendChild(btn);
             });
         }
         
-        document.getElementById('quality-btn').addEventListener('click', e => { e.stopPropagation(); document.getElementById('quality-menu').classList.toggle('hidden'); });
+        document.getElementById('quality-btn').addEventListener('click', e => { 
+            e.stopPropagation(); 
+            document.getElementById('quality-menu').classList.toggle('hidden'); 
+        });
 
-        // Rotation & Fullscreen
+        // --- SKIPPING (Arrow Keys & Double Click) ---
+        function skip(duration) {
+            if (!video.duration) return;
+            video.currentTime += duration;
+            const overlay = duration > 0 ? document.getElementById('skip-overlay-right') : document.getElementById('skip-overlay-left');
+            overlay.classList.remove('show-skip-feedback');
+            void overlay.offsetWidth; // Trigger DOM reflow
+            overlay.classList.add('show-skip-feedback');
+            setTimeout(() => overlay.classList.remove('show-skip-feedback'), 500);
+        }
+
+        document.getElementById('skip-overlay-left').addEventListener('dblclick', () => skip(-10));
+        document.getElementById('skip-overlay-right').addEventListener('dblclick', () => skip(10));
+
+        document.addEventListener('keydown', e => {
+            if (document.activeElement.tagName === 'INPUT') return;
+            if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-10); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); skip(10); }
+            if (e.key === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+        });
+
+        // --- ROTATION & FULLSCREEN ---
         let currentRot = 0;
         document.getElementById('rotate-cw-btn').addEventListener('click', () => {
             currentRot = (currentRot + 90) % 360;
