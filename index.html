@@ -11,39 +11,41 @@
     <div class="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
         <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">Fromm Nexus</h1>
         
-        <div class="mb-4">
-            <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
-            <input type="email" id="username" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-        </div>
-        
-        <div class="mb-4">
-            <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
-            <input type="password" id="password" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-        </div>
-
-        <div class="mb-4 text-sm text-right">
-            <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none">
-                Show Advanced Options
-            </button>
-        </div>
-
-        <div id="advanced-options" class="hidden space-y-4 mb-6">
-            <div>
-                <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2">Device ID (Leave blank to auto-generate)</label>
-                <input type="text" id="deviceId" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <form id="login-form">
+            <div class="mb-4">
+                <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                <input type="email" id="username" autocomplete="username" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
             </div>
-        </div>
+            
+            <div class="mb-4">
+                <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                <input type="password" id="password" autocomplete="current-password" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            </div>
 
-        <div id="status-message" class="text-sm text-center mb-4 hidden"></div>
+            <div class="mb-4 text-sm text-right">
+                <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none">
+                    Show Advanced Options
+                </button>
+            </div>
 
-        <div class="flex gap-2">
-            <button id="check-email-btn" class="w-1/2 px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
-                Check Email
-            </button>
-            <button id="login-btn" class="w-1/2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                Login
-            </button>
-        </div>
+            <div id="advanced-options" class="hidden space-y-4 mb-6">
+                <div>
+                    <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2">Device ID (Leave blank to auto-generate)</label>
+                    <input type="text" id="deviceId" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div id="status-message" class="text-sm text-center mb-4 hidden"></div>
+
+            <div class="flex gap-2">
+                <button type="button" id="check-email-btn" class="w-1/2 px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
+                    Check Email
+                </button>
+                <button type="submit" id="login-btn" class="w-1/2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Login
+                </button>
+            </div>
+        </form>
         
         <div id="debug-box" class="mt-4 p-3 bg-gray-900 border border-gray-700 rounded-lg text-xs font-mono text-left hidden break-all overflow-y-auto max-h-48"></div>
     </div>
@@ -53,6 +55,7 @@
         if (localStorage.getItem('fromm_access_token')) {
             window.location.replace('channels.html');
         }
+
         // --- UTILS ---
         document.getElementById('toggle-advanced').addEventListener('click', function() {
             const adv = document.getElementById('advanced-options');
@@ -79,21 +82,18 @@
         function getOrCreateDeviceId() {
             let id = document.getElementById('deviceId').value.trim();
             if (!id) {
-                // Generate a random UUID v4 if the user doesn't provide one
                 id = crypto.randomUUID();
                 document.getElementById('deviceId').value = id;
             }
             return id;
         }
 
-        // --- THE CRYPTO ENGINE (Replaces Python signin.py) ---
+        // --- THE CRYPTO ENGINE ---
         async function encryptPassword(password, deviceId) {
             const encoder = new TextEncoder();
             const keySource = encoder.encode(deviceId);
             
-            // Python: key = key_source[:32]
             const rawKey = keySource.slice(0, 32);
-            // Python: iv = key[:16]
             const iv = rawKey.slice(0, 16);
 
             const cryptoKey = await crypto.subtle.importKey(
@@ -128,7 +128,6 @@
                 const data = await response.json();
                 showDebug(data);
 
-                // Fixed logic to match the { "code": 200, "success": true } response
                 if (data.success === true) {
                     showStatus("✅ Account verified. Ready for password.", false);
                     document.getElementById('login-btn').disabled = false;
@@ -140,8 +139,11 @@
             }
         });
 
-// --- STEP 2: FULL LOGIN ---
-        document.getElementById('login-btn').addEventListener('click', async () => {
+        // --- STEP 2: FULL LOGIN ---
+        // FIX 5: We listen for "submit" on the "login-form" instead of "click" on the button
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); // FIX 6: This line is critical! It stops the page from refreshing.
+            
             const email = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const deviceId = getOrCreateDeviceId();
@@ -176,16 +178,13 @@
                     
                     const responseData = data.data;
 
-                    // 1. Calculate absolute timestamp for expiry (just like token_expiry in Python)
                     const expiresInSeconds = responseData.expiresIn || 0;
                     let tokenExpiry = null;
                     if (expiresInSeconds > 0) {
-                        // Date.now() is in milliseconds, so we divide by 1000 to match Python's timestamp
                         const currentTimestamp = Math.floor(Date.now() / 1000);
                         tokenExpiry = currentTimestamp + expiresInSeconds;
                     }
                     
-                    // 2. Save everything to browser storage
                     localStorage.setItem('fromm_access_token', responseData.accessToken);
                     localStorage.setItem('fromm_device_id', deviceId);
                     
