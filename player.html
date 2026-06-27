@@ -166,11 +166,11 @@
         window.cloudFrontParams = ""; // Global store for the XHR interceptor
 
         // --- THE MAGIC: XHR INTERCEPTOR ---
-        // This replaces the Flask proxy! It automatically appends CloudFront keys to every HLS segment request.
         const originalOpen = XMLHttpRequest.prototype.open;
         window.XMLHttpRequest.prototype.open = function(method, url) {
             if (typeof url === 'string' && url.includes('channel-contents.frommyarti.com') && window.cloudFrontParams) {
-                if (!url.includes('CloudFront-Signature')) {
+                // Ensure we only append if it's not already there
+                if (!url.includes('Signature=')) {
                     const separator = url.includes('?') ? '&' : '?';
                     url = url + separator + window.cloudFrontParams;
                 }
@@ -203,26 +203,32 @@
                     
                     loaderMessage.textContent = 'Decrypting Stream URL...';
 
-                    // 2. Extract CloudFront Credentials (Ported from streaming.py)
+                    // 2. Extract CloudFront Credentials
                     const pattern = /CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/;
                     const match = rawUrl.match(pattern);
 
                     if (!match) throw new Error("No video credentials found in URL.");
                     
-                    // Save for the XHR interceptor
-                    window.cloudFrontParams = `CloudFront-Key-Pair-Id=${match[1]}&CloudFront-Signature=${match[2]}&CloudFront-Policy=${match[3]}`;
+                    // AWS requires these EXACT names for URL parameters.
+                    window.cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
                     // 3. Extract Master Playlist URL
-                    let masterUrl = rawUrl;
-                    const m3u8Match = rawUrl.match(/\S+\.m3u8/);
+                    let masterUrl = rawUrl.split('?')[0]; // Strip the bad CloudFront- parameters completely
+                    const m3u8Match = masterUrl.match(/\S+\.m3u8/);
+                    
                     if (m3u8Match) {
                         const baseSplit = m3u8Match[0].split("_");
-                        const lastPart = baseSplit.pop();
-                        const extension = lastPart.split(".").pop();
-                        masterUrl = baseSplit.join("_") + "." + extension;
+                        if (baseSplit.length > 1) {
+                            const lastPart = baseSplit.pop();
+                            const extension = lastPart.split(".").pop();
+                            masterUrl = baseSplit.join("_") + "." + extension;
+                        }
                     }
 
-                    console.log("Master URL:", masterUrl);
+                    // Attach the corrected AWS parameters for the initial master playlist request
+                    masterUrl = masterUrl + '?' + window.cloudFrontParams;
+
+                    console.log("Cleaned Master URL:", masterUrl);
                     updateStatus('Initializing player...');
                     loaderMessage.textContent = 'Loading Stream...';
 
