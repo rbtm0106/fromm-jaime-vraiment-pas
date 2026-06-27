@@ -57,9 +57,16 @@
             <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors">Channels</a>
             <a href="#" id="back-to-videos" class="text-blue-400 hover:text-blue-300 transition-colors">Videos</a>
         </div>
-        <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
-            <i data-lucide="log-out" class="w-4 h-4"></i> Logout
-        </button>
+        <div class="flex gap-4 items-center">
+            <div id="session-timer" class="hidden flex items-center gap-1.5 px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-xs font-mono text-gray-400 shadow-inner">
+                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                <span id="time-remaining">--:--</span>
+            </div>
+
+            <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+            </button>
+        </div>
     </nav>
 
     <main class="w-full max-w-4xl">
@@ -156,6 +163,57 @@
         document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
         document.getElementById('post-id-display').textContent = `ID: ${postId}`;
 
+
+        // --- SESSION TIMER ---
+        function startSessionTimer() {
+            const expiryStr = localStorage.getItem('fromm_token_expiry');
+            if (!expiryStr) return; 
+            
+            const expiryTimestamp = parseInt(expiryStr, 10);
+            const timerContainer = document.getElementById('session-timer');
+            const timeSpan = document.getElementById('time-remaining');
+            
+            // Show the timer
+            timerContainer.classList.remove('hidden');
+
+            function updateTimer() {
+                const now = Math.floor(Date.now() / 1000);
+                const diff = expiryTimestamp - now;
+
+                if (diff <= 0) {
+                    timeSpan.textContent = "Expired";
+                    timeSpan.className = "text-red-500 font-bold";
+                    timerContainer.classList.add('border-red-500', 'bg-red-900/20');
+                    clearInterval(timerInterval);
+                    return;
+                }
+
+                // Calculate time units
+                const hours = Math.floor(diff / 3600);
+                const minutes = Math.floor((diff % 3600) / 60);
+                const seconds = diff % 60;
+
+                // Format the display nicely
+                if (hours > 0) {
+                    timeSpan.textContent = `${hours}h ${minutes}m`;
+                } else {
+                    timeSpan.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }
+
+                // Add a visual warning when under 5 minutes (300 seconds)
+                if (diff <= 300) {
+                    timeSpan.className = "text-yellow-400 font-bold animate-pulse";
+                    timerContainer.classList.add('border-yellow-600');
+                }
+            }
+
+            updateTimer(); // Run immediately so there is no 1-second delay
+            const timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        startSessionTimer();
+
+        
         document.getElementById('logout-btn').addEventListener('click', () => {
             localStorage.clear();
             window.location.replace('index.html');
