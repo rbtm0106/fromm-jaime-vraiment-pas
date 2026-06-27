@@ -20,7 +20,16 @@
         /* Smooth fading for controls */
         .player-wrapper:hover .controls-overlay { opacity: 1; }
         .controls-overlay { transition: opacity 0.3s ease; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); }
-        #video { transition: transform 0.3s ease-in-out; }
+        #video { 
+            transition: transform 0.3s ease-in-out;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* This is key: it forces the video to fit within the box */
+        }
+
+        .landscape-mode {
+            aspect-ratio: 16/9 !important;
+        }
 
         .player-wrapper:fullscreen { aspect-ratio: auto; }
         .player-wrapper:fullscreen #video { object-fit: contain; }
@@ -441,10 +450,21 @@
         });
 
         // --- ROTATION & FULLSCREEN ---
+        // Rotate Logic
         let currentRot = 0;
         document.getElementById('rotate-cw-btn').addEventListener('click', () => {
             currentRot = (currentRot + 90) % 360;
+            const video = document.getElementById('video');
+            const container = document.getElementById('video-container');
+            
             video.style.transform = `rotate(${currentRot}deg)`;
+            
+            // If rotating 90 or 270, we are in landscape
+            if (currentRot === 90 || currentRot === 270) {
+                container.classList.add('landscape-mode');
+            } else {
+                container.classList.remove('landscape-mode');
+            }
         });
         document.getElementById('rotate-ccw-btn').addEventListener('click', () => {
             currentRot = (currentRot - 90 + 360) % 360;
