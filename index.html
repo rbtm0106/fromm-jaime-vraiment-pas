@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fromm Link Sandbox</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
+    <div class="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-md w-full text-center border border-gray-700">
+        <h1 class="text-2xl font-bold text-blue-400 mb-4">Network Sandbox</h1>
+        <p class="text-gray-400 mb-6 text-sm">Click below to test if the Chrome Extension is successfully intercepting and bypassing CORS.</p>
+        
+        <button id="test-btn" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors">
+            Test API Connectivity
+        </button>
+        
+        <div id="status-box" class="mt-4 p-3 bg-gray-900 rounded-lg text-xs font-mono text-left hidden break-all"></div>
+    </div>
+
+    <script>
+        document.getElementById('test-btn').addEventListener('click', async () => {
+            const statusBox = document.getElementById('status-box');
+            statusBox.classList.remove('hidden');
+            statusBox.textContent = "Sending request to Fromm API...";
+            
+            try {
+                // Testing a benign initialization or config endpoint
+                const response = await fetch('https://api.frommyarti.com/api/v1/init/config', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                statusBox.textContent = "✅ SUCCESS! CORS Bypassed:\n" + JSON.stringify(data, null, 2);
+            } catch (err) {
+                statusBox.textContent = "❌ FAILED (CORS Blocked or Network Error):\n" + err.message;
+            }
+        });
+    </script>
+</body>
+</html>
