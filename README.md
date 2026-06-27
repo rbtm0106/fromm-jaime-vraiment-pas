@@ -8,7 +8,7 @@ A 100% client-side web player to stream Fromm content directly in your browser.
 This player runs entirely in your browser. To authorize the video stream (bypassing CORS/Cloudflare security), you need to install a small local Chrome extension.
 
 ### Step 1: Install the Chrome Extension
-1. Download the extension: **[Insert link to your fromm-extension.zip]**
+1. Download the extension: **[https://github.com/rbtm0106/fromm-jaime-vraiment-pas/releases/latest/download/fromm_extension.zip]**
 2. Extract the `.zip` file on your computer.
 3. Open Google Chrome and go to `chrome://extensions/`.
 4. Enable **Developer mode** (top right corner).
