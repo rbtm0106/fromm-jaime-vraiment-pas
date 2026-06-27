@@ -3,68 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fromm Web Player - Login</title>
+    <title>Fromm Web Player - Sandbox</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans">
 
     <div class="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
-        <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">Login</h1>
+        <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">API Sandbox</h1>
         
         <div class="mb-4">
             <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username (email)</label>
             <input type="email" id="username" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
         </div>
-        
-        <div class="mb-4">
-            <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
-            <input type="password" id="password" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-        </div>
 
-        <!-- Advanced Options Toggle -->
-        <div class="mb-4 text-sm text-right">
-            <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none">
-                Show Advanced Options
-            </button>
-        </div>
-
-        <div id="advanced-options" class="hidden space-y-4 mb-6">
-            <div>
-                <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2">Device ID (Optional)</label>
-                <input type="text" id="deviceId" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Auto-generated if empty">
-            </div>
-        </div>
-
-        <!-- Status / Error Messages -->
         <div id="status-message" class="text-sm text-center mb-4 hidden"></div>
 
-        <div class="flex gap-2">
-            <button id="check-email-btn" class="w-1/2 text-center px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
-                Check Email
-            </button>
-            <button id="login-btn" class="w-1/2 text-center px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-white transition-colors" disabled>
-                Login
+        <div>
+            <button id="check-email-btn" class="w-full text-center px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
+                1. Test Email Check
             </button>
         </div>
         
-        <div id="debug-box" class="mt-4 p-3 bg-gray-900 border border-gray-700 rounded-lg text-xs font-mono text-left hidden break-all"></div>
+        <div id="debug-box" class="mt-4 p-3 bg-gray-900 border border-gray-700 rounded-lg text-xs font-mono text-left hidden break-all overflow-y-auto max-h-48"></div>
     </div>
 
     <script>
-        // Toggle Advanced Options[cite: 3]
-        document.getElementById('toggle-advanced').addEventListener('click', function() {
-            const adv = document.getElementById('advanced-options');
-            adv.classList.toggle('hidden');
-            this.textContent = adv.classList.contains('hidden') ? 'Show Advanced Options' : 'Hide Advanced Options';
-        });
-
-        // Basic Regex check for email[cite: 8]
+        // Local regex validation matching your Python util
         function isValidEmail(email) {
-            const pattern = /^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$/;
+            const pattern = /^[\w\.-]+@[\w\.-]+\.\w+$/;
             return pattern.test(email);
         }
 
-        // Show status messages
+        // UI Helpers
         function showStatus(message, isError = false) {
             const statusEl = document.getElementById('status-message');
             statusEl.textContent = message;
@@ -80,35 +50,46 @@
         // --- CHECK EMAIL LOGIC ---
         document.getElementById('check-email-btn').addEventListener('click', async () => {
             const email = document.getElementById('username').value.trim();
+            const debugBox = document.getElementById('debug-box');
+            
+            // Clear previous debug
+            debugBox.classList.add('hidden');
             
             if (!isValidEmail(email)) {
                 showStatus("Invalid email format provided.", true);
                 return;
             }
 
-            showStatus("Checking email...", false);
+            showStatus("Sending request to Fromm...", false);
 
             try {
-                // TODO: Replace with the actual URL and method your AccountAPI used
-                const checkUrl = 'https://api.frommyarti.com/api/v1/ACCOUNT_CHECK_ENDPOINT_HERE'; 
+                // Extracted from account_api.py
+                const checkUrl = 'https://account-api.frommyarti.com/auth/exist'; 
                 
                 const response = await fetch(checkUrl, {
-                    method: 'POST', // or GET?
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email }) // Adjust payload structure as needed
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json; charset=UTF-8'
+                    },
+                    // Extracted from account_api.py check_user_exists() payload
+                    body: JSON.stringify({ 
+                        username: email 
+                    }) 
                 });
 
                 const data = await response.json();
                 showDebug(data);
 
-                if (data.success) {
-                    showStatus("Account found! You can now login.", false);
-                    document.getElementById('login-btn').disabled = false;
+                // Check the API response format
+                if (data.success && data.data && data.data.isExist === true) {
+                    showStatus("✅ Account found! Network layer is fully operational.", false);
+                } else if (data.success && data.data && data.data.isExist === false) {
+                    showStatus("❌ API responded, but account does not exist.", true);
                 } else {
-                    showStatus("Account not found.", true);
+                    showStatus("⚠️ Received an unexpected successful response structure.", true);
                 }
             } catch (err) {
-                showStatus("Network error occurred.", true);
+                showStatus("⚠️ Network error or CORS block occurred.", true);
                 showDebug({ error: err.message });
             }
         });
