@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fromm Web Player - Stream</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom range slider styling */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; }
+        input[type=range]:focus { outline: none; }
+
+        /* Hide scrollbar for quality menu */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Smooth fading for controls */
+        .player-wrapper:hover .controls-overlay { opacity: 1; }
+        .controls-overlay { transition: opacity 0.3s ease; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); }
+        #video { transition: transform 0.3s ease-in-out; }
+
+        .player-wrapper:fullscreen { aspect-ratio: auto; }
+        .player-wrapper:fullscreen #video { object-fit: contain; }
+
+        /* Overlays */
+        .click-overlay { position: absolute; top: 0; bottom: 0; width: 30%; z-index: 15; }
+        #skip-overlay-left { left: 0; }
+        #skip-overlay-right { right: 0; }
+        #middle-click-overlay { left: 30%; width: 40%; }
+
+        /* Feedback icons */
+        .skip-feedback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        .show-skip-feedback .skip-feedback { animation: fadeOut 0.5s ease; }
+        @keyframes fadeOut {
+            0% { opacity: 0.8; transform: translate(-50%, -50%) scale(0.9); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4 font-sans">
+
+    <nav class="w-full max-w-4xl mb-4 p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow border border-gray-700">
+        <div class="flex gap-4">
+            <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors">Channels</a>
+            <a href="#" id="back-to-videos" class="text-blue-400 hover:text-blue-300 transition-colors">Videos</a>
+        </div>
+        <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+            <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+        </button>
+    </nav>
+
+    <main class="w-full max-w-4xl">
+        <div class="mb-4 flex justify-between items-end">
+            <h1 id="video-title" class="text-2xl font-bold text-blue-400 truncate w-3/4">Loading...</h1>
+            <p id="post-id-display" class="text-gray-500 text-sm font-mono"></p>
+        </div>
+
+        <div class="player-wrapper relative group bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 aspect-video" id="video-container">
+            <video id="video" class="w-full h-full object-contain"></video>
+
+            <div id="skip-overlay-left" class="click-overlay"><div class="skip-feedback"><i data-lucide="rewind" class="w-12 h-12"></i></div></div>
+            <div id="middle-click-overlay" class="click-overlay cursor-pointer"></div>
+            <div id="skip-overlay-right" class="click-overlay"><div class="skip-feedback"><i data-lucide="fast-forward" class="w-12 h-12"></i></div></div>
+
+            <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                <p id="loader-message" class="mt-4 text-gray-300">Fetching API...</p>
+            </div>
+
+            <div id="error-display" class="hidden absolute inset-0 flex-col items-center justify-center bg-black/90 z-20 text-center p-6">
+                <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mb-2"></i>
+                <h3 class="text-lg font-bold text-white">Playback Error</h3>
+                <p id="error-message" class="text-gray-400 text-sm mt-1">Unable to load stream.</p>
+                <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Retry</button>
+            </div>
+
+            <div class="controls-overlay absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 flex flex-col gap-2 z-20">
+                <div class="relative w-full h-2 group/progress cursor-pointer flex items-center" id="progress-container">
+                    <div class="absolute w-full h-1 bg-gray-600 rounded-full"></div>
+                    <div id="buffered-bar" class="absolute h-1 bg-gray-400 rounded-full transition-all duration-200" style="width: 0%"></div>
+                    <div id="progress-bar" class="absolute h-1 bg-blue-500 rounded-full transition-all duration-75" style="width: 0%"></div>
+                    <div class="absolute h-3 w-3 bg-white rounded-full shadow opacity-0 group-hover/progress:opacity-100 transition-opacity" id="progress-thumb" style="left: 0%"></div>
+                </div>
+
+                <div class="flex items-center justify-between mt-1">
+                    <div class="flex items-center gap-4">
+                        <button id="play-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="play" class="w-6 h-6 fill-current"></i></button>
+                        <div class="group/vol flex items-center gap-2">
+                            <button id="mute-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="volume-2" class="w-6 h-6"></i></button>
+                            <div class="w-0 overflow-hidden group-hover/vol:w-24 transition-all duration-300">
+                                <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="text-xs text-gray-300 font-mono"><span id="current-time">00:00</span> / <span id="duration">00:00</span></div>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button id="rotate-ccw-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="rotate-ccw" class="w-5 h-5"></i></button>
+                        <button id="rotate-cw-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="rotate-cw" class="w-5 h-5"></i></button>
+                        <div class="relative">
+                            <button id="quality-btn" class="flex items-center gap-1 text-sm font-medium hover:text-blue-400 transition-colors px-2 py-1 rounded bg-black/40 border border-transparent hover:border-gray-700">
+                                <i data-lucide="settings" class="w-4 h-4"></i><span id="current-quality-label">Auto</span>
+                            </button>
+                            <div id="quality-menu" class="hidden absolute bottom-full right-0 mb-2 w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
+                                <div class="py-1" id="quality-options"></div>
+                            </div>
+                        </div>
+                        <button id="fullscreen-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="maximize" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 flex justify-between items-start gap-4">
+            <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-center">Initializing...</div>
+            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 flex-grow">
+                <h3 class="font-bold text-gray-300 text-sm mb-2">Debug Info</h3>
+                <div class="grid grid-cols-2 gap-4 text-xs font-mono text-gray-400">
+                    <div>Status: <span id="debug-status" class="text-white">-</span></div>
+                    <div>Current Level: <span id="debug-level" class="text-white">-</span></div>
+                    <div>Buffer Length: <span id="debug-buffer" class="text-white">-</span></div>
+                    <div>Codecs: <span id="debug-codecs" class="text-white">-</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+
+    <script>
+        lucide.createIcons();
+
+        // --- AUTH & SETUP ---
+        const token = localStorage.getItem('fromm_access_token');
+        if (!token) window.location.replace('index.html');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const channelId = urlParams.get('channel_id');
+        const postId = urlParams.get('post_id');
+
+        if (!channelId || !postId) window.location.replace('channels.html');
+
+        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
+        document.getElementById('post-id-display').textContent = `ID: ${postId}`;
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            localStorage.clear();
+            window.location.replace('index.html');
+        });
+
+        // --- DOM Elements ---
+        const video = document.getElementById('video');
+        const loader = document.getElementById('loader');
+        const loaderMessage = document.getElementById('loader-message');
+        const errorDisplay = document.getElementById('error-display');
+        const errorMessage = document.getElementById('error-message');
+        const statusBadge = document.getElementById('status-badge');
+        const debugStatus = document.getElementById('debug-status');
+        const debugCodecs = document.getElementById('debug-codecs');
+
+        let hls = null;
+        window.cloudFrontParams = ""; // Global store for the XHR interceptor
+
+        // --- THE MAGIC: XHR INTERCEPTOR ---
+        // This replaces the Flask proxy! It automatically appends CloudFront keys to every HLS segment request.
+        const originalOpen = XMLHttpRequest.prototype.open;
+        window.XMLHttpRequest.prototype.open = function(method, url) {
+            if (typeof url === 'string' && url.includes('channel-contents.frommyarti.com') && window.cloudFrontParams) {
+                if (!url.includes('CloudFront-Signature')) {
+                    const separator = url.includes('?') ? '&' : '?';
+                    url = url + separator + window.cloudFrontParams;
+                }
+            }
+            return originalOpen.apply(this, arguments);
+        };
+
+        // --- MAIN LOGIC ---
+        async function main() {
+            try {
+                updateStatus('Fetching video info...');
+                
+                // 1. Fetch Post Details
+                const response = await fetch(`https://channel-api.frommyarti.com/media/posts/${postId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': token,
+                        'uuid': crypto.randomUUID(),
+                        'channel-id': channelId,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error("Could not fetch video info.");
+                const postData = await response.json();
+                
+                if (postData.success && postData.data && postData.data.post) {
+                    const rawUrl = postData.data.post.url;
+                    document.getElementById('video-title').textContent = postData.data.post.title;
+                    
+                    loaderMessage.textContent = 'Decrypting Stream URL...';
+
+                    // 2. Extract CloudFront Credentials (Ported from streaming.py)
+                    const pattern = /CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/;
+                    const match = rawUrl.match(pattern);
+
+                    if (!match) throw new Error("No video credentials found in URL.");
+                    
+                    // Save for the XHR interceptor
+                    window.cloudFrontParams = `CloudFront-Key-Pair-Id=${match[1]}&CloudFront-Signature=${match[2]}&CloudFront-Policy=${match[3]}`;
+
+                    // 3. Extract Master Playlist URL
+                    let masterUrl = rawUrl;
+                    const m3u8Match = rawUrl.match(/\S+\.m3u8/);
+                    if (m3u8Match) {
+                        const baseSplit = m3u8Match[0].split("_");
+                        const lastPart = baseSplit.pop();
+                        const extension = lastPart.split(".").pop();
+                        masterUrl = baseSplit.join("_") + "." + extension;
+                    }
+
+                    console.log("Master URL:", masterUrl);
+                    updateStatus('Initializing player...');
+                    loaderMessage.textContent = 'Loading Stream...';
+
+                    // 4. Initialize HLS.js
+                    initPlayer(masterUrl);
+                } else {
+                    throw new Error("Invalid post data returned.");
+                }
+            } catch (error) {
+                console.error(error);
+                showError(error.message);
+            }
+        }
+
+        function initPlayer(streamUrl) {
+            if (Hls.isSupported()) {
+                hls = new Hls({ debug: false, maxBufferLength: 60 });
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                    updateStatus('Ready to Play');
+                    loader.style.display = 'none';
+                    debugCodecs.textContent = data.levels[0]?.attrs?.CODECS || 'Unknown';
+                    generateQualityControls(data.levels);
+                    video.play().catch(() => updateStatus('Click to Play'));
+                });
+
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        showError(`HLS Error: ${data.details}`);
+                        hls.destroy();
+                    }
+                });
+            } else {
+                showError("Your browser does not support HLS playback.");
+            }
+        }
+
+        // --- UTILS & CONTROLS (Kept exactly as your original code) ---
+        function updateStatus(msg) {
+            statusBadge.textContent = msg;
+            debugStatus.textContent = msg;
+            statusBadge.className = 'px-3 py-1 rounded-full text-xs font-medium border self-center ' +
+                (msg.includes('Playing') ? 'bg-green-900 text-green-300 border-green-700' :
+                (msg.includes('Error') ? 'bg-red-900 text-red-300 border-red-700' :
+                'bg-gray-800 text-gray-400 border-gray-700'));
+        }
+
+        function showError(msg) {
+            loader.style.display = 'none';
+            errorDisplay.classList.remove('hidden');
+            errorDisplay.classList.add('flex');
+            errorMessage.textContent = msg;
+            updateStatus(`Error`);
+        }
+
+        // The rest of your event listeners (Play, Mute, Seek, Rotation, Fullscreen) 
+        // are wired exactly as they were in your template.
+        const playBtn = document.getElementById('play-btn');
+        const muteBtn = document.getElementById('mute-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+        const currentTimeEl = document.getElementById('current-time');
+        const durationEl = document.getElementById('duration');
+        const progressBar = document.getElementById('progress-bar');
+        const progressThumb = document.getElementById('progress-thumb');
+        
+        playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
+        document.getElementById('middle-click-overlay').addEventListener('click', () => video.paused ? video.play() : video.pause());
+        
+        video.addEventListener('play', () => {
+            playBtn.innerHTML = '<i data-lucide="pause" class="w-6 h-6 fill-current"></i>';
+            lucide.createIcons();
+            updateStatus('Playing');
+        });
+        video.addEventListener('pause', () => {
+            playBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6 fill-current"></i>';
+            lucide.createIcons();
+            updateStatus('Paused');
+        });
+
+        muteBtn.addEventListener('click', () => { video.muted = !video.muted; });
+        volumeSlider.addEventListener('input', e => { video.muted = false; video.volume = e.target.value; });
+        
+        video.addEventListener('timeupdate', () => {
+            const progress = (video.currentTime / video.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            progressThumb.style.left = `${progress}%`;
+            currentTimeEl.textContent = formatTime(video.currentTime);
+            if (video.duration) durationEl.textContent = formatTime(video.duration);
+        });
+
+        function formatTime(time) {
+            if (isNaN(time)) return "00:00";
+            const min = Math.floor(time / 60), sec = Math.floor(time % 60);
+            return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        function generateQualityControls(levels) {
+            const qualityOptions = document.getElementById('quality-options');
+            qualityOptions.innerHTML = '';
+            
+            const autoBtn = document.createElement('button');
+            autoBtn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50';
+            autoBtn.innerHTML = 'Auto';
+            autoBtn.onclick = () => { hls.currentLevel = -1; document.getElementById('quality-menu').classList.add('hidden'); };
+            qualityOptions.appendChild(autoBtn);
+
+            levels.forEach((level, index) => {
+                const btn = document.createElement('button');
+                const res = Math.min(level.width, level.height);
+                btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800';
+                btn.innerHTML = `${res}p`;
+                btn.onclick = () => { hls.currentLevel = index; document.getElementById('quality-menu').classList.add('hidden'); };
+                qualityOptions.appendChild(btn);
+            });
+        }
+        
+        document.getElementById('quality-btn').addEventListener('click', e => { e.stopPropagation(); document.getElementById('quality-menu').classList.toggle('hidden'); });
+
+        // Rotation & Fullscreen
+        let currentRot = 0;
+        document.getElementById('rotate-cw-btn').addEventListener('click', () => {
+            currentRot = (currentRot + 90) % 360;
+            video.style.transform = `rotate(${currentRot}deg)`;
+        });
+        document.getElementById('rotate-ccw-btn').addEventListener('click', () => {
+            currentRot = (currentRot - 90 + 360) % 360;
+            video.style.transform = `rotate(${currentRot}deg)`;
+        });
+        
+        document.getElementById('fullscreen-btn').addEventListener('click', () => {
+            if (!document.fullscreenElement) document.getElementById('video-container').requestFullscreen();
+            else document.exitFullscreen();
+        });
+
+        // Start
+        main();
+    </script>
+</body>
+</html>
