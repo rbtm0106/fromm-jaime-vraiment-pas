@@ -3,24 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fromm Web Player - Sandbox</title>
+    <title>Fromm Web Player - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans">
 
     <div class="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
-        <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">API Sandbox</h1>
+        <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">Fromm Nexus</h1>
         
         <div class="mb-4">
-            <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username (email)</label>
+            <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
             <input type="email" id="username" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+        
+        <div class="mb-4">
+            <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+            <input type="password" id="password" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+
+        <div class="mb-4 text-sm text-right">
+            <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none">
+                Show Advanced Options
+            </button>
+        </div>
+
+        <div id="advanced-options" class="hidden space-y-4 mb-6">
+            <div>
+                <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2">Device ID (Leave blank to auto-generate)</label>
+                <input type="text" id="deviceId" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
         </div>
 
         <div id="status-message" class="text-sm text-center mb-4 hidden"></div>
 
-        <div>
-            <button id="check-email-btn" class="w-full text-center px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
-                1. Test Email Check
+        <div class="flex gap-2">
+            <button id="check-email-btn" class="w-1/2 px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
+                Check Email
+            </button>
+            <button id="login-btn" class="w-1/2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                Login
             </button>
         </div>
         
@@ -28,13 +49,17 @@
     </div>
 
     <script>
-        // Local regex validation matching your Python util
+        // --- UTILS ---
+        document.getElementById('toggle-advanced').addEventListener('click', function() {
+            const adv = document.getElementById('advanced-options');
+            adv.classList.toggle('hidden');
+            this.textContent = adv.classList.contains('hidden') ? 'Show Advanced Options' : 'Hide Advanced Options';
+        });
+
         function isValidEmail(email) {
-            const pattern = /^[\w\.-]+@[\w\.-]+\.\w+$/;
-            return pattern.test(email);
+            return /^[\w\.-]+@[\w\.-]+\.\w+$/.test(email);
         }
 
-        // UI Helpers
         function showStatus(message, isError = false) {
             const statusEl = document.getElementById('status-message');
             statusEl.textContent = message;
@@ -47,49 +72,135 @@
             debugBox.textContent = JSON.stringify(data, null, 2);
         }
 
-        // --- CHECK EMAIL LOGIC ---
+        function getOrCreateDeviceId() {
+            let id = document.getElementById('deviceId').value.trim();
+            if (!id) {
+                // Generate a random UUID v4 if the user doesn't provide one
+                id = crypto.randomUUID();
+                document.getElementById('deviceId').value = id;
+            }
+            return id;
+        }
+
+        // --- THE CRYPTO ENGINE (Replaces Python signin.py) ---
+        async function encryptPassword(password, deviceId) {
+            const encoder = new TextEncoder();
+            const keySource = encoder.encode(deviceId);
+            
+            // Python: key = key_source[:32]
+            const rawKey = keySource.slice(0, 32);
+            // Python: iv = key[:16]
+            const iv = rawKey.slice(0, 16);
+
+            const cryptoKey = await crypto.subtle.importKey(
+                "raw", rawKey, { name: "AES-CBC" }, false, ["encrypt"]
+            );
+
+            const passwordBytes = encoder.encode(password);
+            const encryptedBuffer = await crypto.subtle.encrypt(
+                { name: "AES-CBC", iv: iv }, cryptoKey, passwordBytes
+            );
+
+            return Array.from(new Uint8Array(encryptedBuffer))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // --- STEP 1: CHECK EMAIL ---
         document.getElementById('check-email-btn').addEventListener('click', async () => {
             const email = document.getElementById('username').value.trim();
-            const debugBox = document.getElementById('debug-box');
+            document.getElementById('debug-box').classList.add('hidden');
             
-            // Clear previous debug
-            debugBox.classList.add('hidden');
-            
-            if (!isValidEmail(email)) {
-                showStatus("Invalid email format provided.", true);
-                return;
-            }
+            if (!isValidEmail(email)) return showStatus("Invalid email format.", true);
 
-            showStatus("Sending request to Fromm...", false);
+            showStatus("Checking account...", false);
 
             try {
-                // Extracted from account_api.py
-                const checkUrl = 'https://account-api.frommyarti.com/auth/exist'; 
+                const response = await fetch('https://account-api.frommyarti.com/auth/exist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                    body: JSON.stringify({ username: email }) 
+                });
+
+                const data = await response.json();
+                showDebug(data);
+
+                // Fixed logic to match the { "code": 200, "success": true } response
+                if (data.success === true) {
+                    showStatus("✅ Account verified. Ready for password.", false);
+                    document.getElementById('login-btn').disabled = false;
+                } else {
+                    showStatus("❌ Account not found.", true);
+                }
+            } catch (err) {
+                showStatus("⚠️ Network error.", true);
+            }
+        });
+
+// --- STEP 2: FULL LOGIN ---
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const email = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const deviceId = getOrCreateDeviceId();
+            
+            if (!password) return showStatus("Please enter your password.", true);
+
+            showStatus("Encrypting payload and authenticating...", false);
+
+            try {
+                const encryptedHex = await encryptPassword(password, deviceId);
                 
-                const response = await fetch(checkUrl, {
+                const response = await fetch('https://account-api.frommyarti.com/auth/signin', {
                     method: 'POST',
                     headers: { 
-                        'Content-Type': 'application/json; charset=UTF-8'
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'uuid': deviceId
                     },
-                    // Extracted from account_api.py check_user_exists() payload
                     body: JSON.stringify({ 
-                        username: email 
+                        username: email,
+                        password: encryptedHex,
+                        deviceId: deviceId,
+                        from: "app",
+                        allowUpdateDeviceId: true
                     }) 
                 });
 
                 const data = await response.json();
                 showDebug(data);
 
-                // Check the API response format
-                if (data.success && data.data && data.data.isExist === true) {
-                    showStatus("✅ Account found! Network layer is fully operational.", false);
-                } else if (data.success && data.data && data.data.isExist === false) {
-                    showStatus("❌ API responded, but account does not exist.", true);
+                if (data.success && data.data && data.data.accessToken) {
+                    showStatus("🎉 Login Complete! Tokens retrieved and saved.", false);
+                    
+                    const responseData = data.data;
+
+                    // 1. Calculate absolute timestamp for expiry (just like token_expiry in Python)
+                    const expiresInSeconds = responseData.expiresIn || 0;
+                    let tokenExpiry = null;
+                    if (expiresInSeconds > 0) {
+                        // Date.now() is in milliseconds, so we divide by 1000 to match Python's timestamp
+                        const currentTimestamp = Math.floor(Date.now() / 1000);
+                        tokenExpiry = currentTimestamp + expiresInSeconds;
+                    }
+                    
+                    // 2. Save everything to browser storage
+                    localStorage.setItem('fromm_access_token', responseData.accessToken);
+                    localStorage.setItem('fromm_device_id', deviceId);
+                    
+                    if (responseData.refreshToken) {
+                        localStorage.setItem('fromm_refresh_token', responseData.refreshToken);
+                    }
+                    if (responseData.resourceToken) {
+                        localStorage.setItem('fromm_resource_token', responseData.resourceToken);
+                    }
+                    if (tokenExpiry) {
+                        localStorage.setItem('fromm_token_expiry', tokenExpiry);
+                    }
+                    
+                    console.log("All session data securely stored in localStorage.");
                 } else {
-                    showStatus("⚠️ Received an unexpected successful response structure.", true);
+                    showStatus("❌ Invalid password or login failed.", true);
                 }
             } catch (err) {
-                showStatus("⚠️ Network error or CORS block occurred.", true);
+                showStatus("⚠️ Encryption or Network error.", true);
                 showDebug({ error: err.message });
             }
         });
