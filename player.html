@@ -450,30 +450,40 @@
         });
 
         // --- ROTATION & FULLSCREEN ---
-        // Rotate Logic
         let currentRot = 0;
-        document.getElementById('rotate-cw-btn').addEventListener('click', () => {
-            currentRot = (currentRot + 90) % 360;
+        
+        function updateRotation() {
             const video = document.getElementById('video');
             const container = document.getElementById('video-container');
             
-            video.style.transform = `rotate(${currentRot}deg)`;
-            
-            // If rotating 90 or 270, we are in landscape
             if (currentRot === 90 || currentRot === 270) {
-                container.classList.add('landscape-mode');
+                // Calculate the exact aspect ratio scale to perfectly fit the screen
+                const scale = container.clientWidth / container.clientHeight;
+                video.style.transform = `rotate(${currentRot}deg) scale(${scale})`;
             } else {
-                container.classList.remove('landscape-mode');
+                video.style.transform = `rotate(${currentRot}deg) scale(1)`;
             }
-        });
-        document.getElementById('rotate-ccw-btn').addEventListener('click', () => {
-            currentRot = (currentRot - 90 + 360) % 360;
-            video.style.transform = `rotate(${currentRot}deg)`;
+        }
+
+        document.getElementById('rotate-cw-btn').addEventListener('click', () => {
+            currentRot = (currentRot + 90) % 360;
+            updateRotation();
         });
         
+        document.getElementById('rotate-ccw-btn').addEventListener('click', () => {
+            currentRot = (currentRot - 90 + 360) % 360;
+            updateRotation();
+        });
+        
+        // Keep it scaled properly if the user resizes the window or goes fullscreen
+        window.addEventListener('resize', updateRotation);
+        
         document.getElementById('fullscreen-btn').addEventListener('click', () => {
-            if (!document.fullscreenElement) document.getElementById('video-container').requestFullscreen();
-            else document.exitFullscreen();
+            if (!document.fullscreenElement) {
+                document.getElementById('video-container').requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
         });
 
         // Start
