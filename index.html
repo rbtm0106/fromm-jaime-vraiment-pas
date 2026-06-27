@@ -49,6 +49,10 @@
     </div>
 
     <script>
+        // --- AUTO-REDIRECT IF LOGGED IN ---
+        if (localStorage.getItem('fromm_access_token')) {
+            window.location.replace('channels.html');
+        }
         // --- UTILS ---
         document.getElementById('toggle-advanced').addEventListener('click', function() {
             const adv = document.getElementById('advanced-options');
