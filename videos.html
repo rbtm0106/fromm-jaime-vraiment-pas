@@ -144,7 +144,7 @@
             }
         }
 
-        // --- THE MAIN DOWNLOADER ENGINE ---
+        // --- THE MAIN DOWNLOADER ENGINE (WITH AES-128 DECRYPTION) ---
         async function downloadVideo(postId, channelId) {
             const btn = document.getElementById(`dl-btn-${postId}`);
             const progressContainer = document.getElementById(`progress-container-${postId}`);
@@ -156,7 +156,6 @@
             btn.disabled = true;
 
             try {
-                // Show UI
                 progressContainer.classList.remove('hidden');
                 progressStatus.textContent = "Fetching keys...";
                 
@@ -167,12 +166,10 @@
                 const postData = await postRes.json();
                 const rawUrl = postData.data.post.url;
 
-                // Extract Keys
                 const match = rawUrl.match(/CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/);
                 if (!match) throw new Error("No keys found in URL.");
                 const cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
-                // Get Master URL
                 let masterUrl = rawUrl.split('?')[0];
                 const m3u8Match = masterUrl.match(/\S+\.m3u8/);
                 if (m3u8Match) {
@@ -192,7 +189,41 @@
                 const subText = await (await fetch(subUrl + '?' + cloudFrontParams)).text();
                 const subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
                 
-                // Extract TS lines
+                // --- NEW: EXTRACT DECRYPTION KEYS ---
+                let cryptoKey = null;
+                let globalIv = null;
+                let mediaSequence = 0;
+
+                const seqMatch = subText.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/);
+                if (seqMatch) mediaSequence = parseInt(seqMatch[1], 10);
+
+                const keyMatch = subText.match(/#EXT-X-KEY:METHOD=AES-128,URI="([^"]+)"(?:,IV=0x([0-9A-Fa-f]+))?/);
+                
+                if (keyMatch) {
+                    progressStatus.textContent = "Fetching AES Decryption Key...";
+                    let keyUrl = keyMatch[1];
+                    if (!keyUrl.startsWith('http')) keyUrl = subBaseUrl + keyUrl;
+                    
+                    // Fetch the 16-byte key (Append CloudFront params if necessary)
+                    const keyUrlWithParams = keyUrl.includes('?') ? keyUrl : `${keyUrl}?${cloudFrontParams}`;
+                    const keyRes = await fetch(keyUrlWithParams);
+                    if (!keyRes.ok) throw new Error("Failed to fetch AES key.");
+                    
+                    const keyData = await keyRes.arrayBuffer();
+                    
+                    // Import into Web Crypto API
+                    cryptoKey = await crypto.subtle.importKey(
+                        "raw", keyData, { name: "AES-CBC" }, false, ["decrypt"]
+                    );
+
+                    // Parse the Initialization Vector (IV) if it exists in the manifest
+                    if (keyMatch[2]) {
+                        let hexString = keyMatch[2].padStart(32, '0');
+                        globalIv = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    }
+                }
+                // ------------------------------------
+
                 const tsUrls = subText.split('\n')
                     .filter(line => line.trim().endsWith('.ts'))
                     .map(line => {
@@ -204,21 +235,54 @@
                 const totalChunks = tsUrls.length;
                 if (totalChunks === 0) throw new Error("No chunks found");
 
-                let downloadedChunks = [];
+                progressStatus.textContent = "Downloading & Decrypting...";
 
-                progressStatus.textContent = "Downloading...";
+                // 3. Concurrent Download & Decrypt Loop
+                const CONCURRENCY_LIMIT = 5; 
+                let downloadedChunks = new Array(totalChunks); 
+                let chunksDone = 0;
+                const iterator = tsUrls.entries(); 
 
-                // 3. Download Loop
-                for (let i = 0; i < totalChunks; i++) {
-                    const chunkRes = await fetch(tsUrls[i]);
-                    if (!chunkRes.ok) throw new Error(`Failed chunk ${i}`);
-                    
-                    downloadedChunks.push(await chunkRes.arrayBuffer());
+                async function downloadWorker() {
+                    for (let [index, url] of iterator) {
+                        const chunkRes = await fetch(url);
+                        if (!chunkRes.ok) throw new Error(`Failed chunk ${index}`);
+                        
+                        let chunkBuffer = await chunkRes.arrayBuffer();
 
-                    // Update UI Progress
-                    progressText.textContent = `${i + 1} / ${totalChunks}`;
-                    progressBar.style.width = `${((i + 1) / totalChunks) * 100}%`;
+                        // --- NEW: DECRYPT THE CHUNK IN MEMORY ---
+                        if (cryptoKey) {
+                            let currentIv = globalIv;
+                            // If no IV was provided in the manifest, HLS spec says to use the sequence number
+                            if (!currentIv) {
+                                currentIv = new Uint8Array(16);
+                                const view = new DataView(currentIv.buffer);
+                                view.setUint32(12, mediaSequence + index, false); 
+                            }
+
+                            try {
+                                chunkBuffer = await crypto.subtle.decrypt(
+                                    { name: "AES-CBC", iv: currentIv },
+                                    cryptoKey,
+                                    chunkBuffer
+                                );
+                            } catch (decErr) {
+                                console.error(`Decryption failed on chunk ${index}`, decErr);
+                                throw new Error(`Decryption failed on chunk ${index}`);
+                            }
+                        }
+                        // ----------------------------------------
+
+                        downloadedChunks[index] = chunkBuffer;
+
+                        chunksDone++;
+                        progressText.textContent = `${chunksDone} / ${totalChunks}`;
+                        progressBar.style.width = `${(chunksDone / totalChunks) * 100}%`;
+                    }
                 }
+
+                const workers = Array(CONCURRENCY_LIMIT).fill(null).map(downloadWorker);
+                await Promise.all(workers);
 
                 progressStatus.textContent = "Saving file...";
                 progressText.textContent = "";
@@ -232,12 +296,10 @@
                 document.body.appendChild(a);
                 a.click();
                 
-                // Cleanup memory
                 document.body.removeChild(a);
                 URL.revokeObjectURL(downloadUrl);
                 downloadedChunks = [];
 
-                // 5. Success! Mark as downloaded
                 progressContainer.classList.add('hidden');
                 markAsDownloaded(postId);
                 updateButtonUI(postId);
@@ -251,7 +313,6 @@
                 btn.disabled = false;
             }
         }
-
         // --- STATE ---
         let isLast = true;
         let lastPost = null;
