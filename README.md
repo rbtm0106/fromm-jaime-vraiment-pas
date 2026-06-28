@@ -19,5 +19,12 @@ This player runs entirely in your browser. To authorize the video stream (bypass
 2. Log in with your credentials (your data remains stored locally in your browser).
 3. Browse your subscriptions and launch a VOD!
 
+
+### Bonus convert .ts to .mp4:
+1. I made small tool to convert .ts to .mp4 **[https://github.com/rbtm0106/fromm-jaime-vraiment-pas/releases/latest/download/ts_to_mp4.zip]**
+2. Unzip and drag the .ts file to the .bat file
+3. Demo: [https://youtu.be/jSEhjIaNUSs]
+
+
 ---
 *Disclaimer: Experimental project for educational purposes. No affiliation with Fromm or Knowmerce.* <- gemini wrote this disclairmer and recommanded me to distributed an share this code with the community, please Knowmerce, don't sue google 
