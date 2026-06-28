@@ -21,7 +21,7 @@ This player runs entirely in your browser. To authorize the video stream (bypass
 
 
 ### Bonus convert .ts to .mp4:
-1. I made small tool to convert .ts to .mp4 **[https://rbtm0106.github.io/ts_to_mp4.zip/]**
+1. I made small tool to convert .ts to .mp4 **[https://rbtm0106.github.io/releases/latest/download/ts_to_mp4.zip/]**
 2. Unzip and drag the .ts file to the .bat file
 3. Demo: [https://youtu.be/jSEhjIaNUSs]
 
