@@ -300,6 +300,7 @@
                 URL.revokeObjectURL(downloadUrl);
                 downloadedChunks = [];
 
+                // 5. Success! Mark as downloaded
                 progressContainer.classList.add('hidden');
                 markAsDownloaded(postId);
                 updateButtonUI(postId);
@@ -310,6 +311,9 @@
                 progressStatus.textContent = "Error!";
                 progressStatus.classList.add('text-red-500');
                 progressBar.classList.add('bg-red-500');
+            } finally {
+                // NEW: This guarantees the button becomes clickable again, 
+                // whether the download succeeded or failed!
                 btn.disabled = false;
             }
         }
@@ -331,6 +335,7 @@
             }
         }
 
+        // --- FETCH VIDEOS ---
         // --- FETCH VIDEOS ---
         async function fetchVideos(loadMore = false) {
             if (isLoading) return;
@@ -380,16 +385,35 @@
 
                     let html = '';
                     liveVideos.forEach(video => {
-                        // FIX: Changed HTML structure to separate the card from the download button
+                        // --- CHECK PLAYBACK HISTORY (NEW) ---
+                        let progressHtml = '';
+                        const savedProgress = localStorage.getItem(`fromm_progress_${video.id}`);
+                        if (savedProgress) {
+                            try {
+                                const { currentTime, duration } = JSON.parse(savedProgress);
+                                if (duration > 0) {
+                                    const percent = (currentTime / duration) * 100;
+                                    // Only show the bar if they actually watched some of it
+                                    if (percent > 0.5) {
+                                        progressHtml = `
+                                            <div class="absolute bottom-0 left-0 right-0 h-1 bg-gray-700/80 z-10">
+                                                <div class="h-full bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.8)]" style="width: ${percent}%"></div>
+                                            </div>
+                                        `;
+                                    }
+                                }
+                            } catch(e) {}
+                        }
+
                         html += `
                             <div class="relative bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg group hover:border-blue-400 transition-colors" id="video-card-${video.id}">
-                                <!-- Thumbnail and Link to Player -->
                                 <a href="player.html?channel_id=${channelId}&post_id=${video.id}" class="block">
                                     <div class="relative w-full h-40 overflow-hidden bg-black">
                                         <img src="${video.thumbnail.url}" alt="${video.title}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300">
                                         <div class="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded text-xs text-white font-mono flex items-center gap-1">
                                             <i data-lucide="play-circle" class="w-3 h-3"></i> VOD
                                         </div>
+                                        ${progressHtml}
                                     </div>
                                     <div class="p-4">
                                         <h2 class="font-semibold text-white text-lg line-clamp-2" title="${video.title}">${video.title}</h2>
@@ -399,12 +423,10 @@
                                     </div>
                                 </a>
 
-                                <!-- The Download Button -->
                                 <button onclick="downloadVideo('${video.id}', '${channelId}')" id="dl-btn-${video.id}" class="absolute top-2 right-2 p-2 bg-black/60 hover:bg-blue-600 rounded-full text-white transition-colors z-10">
                                     <i data-lucide="download" class="w-4 h-4"></i>
                                 </button>
 
-                                <!-- The Hidden Progress Bar Container (At the bottom) -->
                                 <div id="progress-container-${video.id}" class="hidden absolute bottom-0 left-0 right-0 bg-gray-900/95 border-t border-gray-700 p-2 z-20">
                                     <div class="text-[10px] text-blue-400 font-mono mb-1 flex justify-between">
                                         <span id="progress-status-${video.id}">Downloading...</span>
@@ -452,7 +474,6 @@
                 if (loadMore) loadMoreBtn.textContent = "Load More";
             }
         }
-
         // --- EVENTS ---
         document.getElementById('load-more-btn').addEventListener('click', () => fetchVideos(true));
 

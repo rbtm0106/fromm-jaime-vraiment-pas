@@ -163,7 +163,6 @@
         document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
         document.getElementById('post-id-display').textContent = `ID: ${postId}`;
 
-
         // --- SESSION TIMER ---
         function startSessionTimer() {
             const expiryStr = localStorage.getItem('fromm_token_expiry');
@@ -173,7 +172,6 @@
             const timerContainer = document.getElementById('session-timer');
             const timeSpan = document.getElementById('time-remaining');
             
-            // Show the timer
             timerContainer.classList.remove('hidden');
 
             function updateTimer() {
@@ -188,32 +186,28 @@
                     return;
                 }
 
-                // Calculate time units
                 const hours = Math.floor(diff / 3600);
                 const minutes = Math.floor((diff % 3600) / 60);
                 const seconds = diff % 60;
 
-                // Format the display nicely
                 if (hours > 0) {
                     timeSpan.textContent = `${hours}h ${minutes}m`;
                 } else {
                     timeSpan.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
                 }
 
-                // Add a visual warning when under 5 minutes (300 seconds)
                 if (diff <= 300) {
                     timeSpan.className = "text-yellow-400 font-bold animate-pulse";
                     timerContainer.classList.add('border-yellow-600');
                 }
             }
 
-            updateTimer(); // Run immediately so there is no 1-second delay
+            updateTimer(); 
             const timerInterval = setInterval(updateTimer, 1000);
         }
 
         startSessionTimer();
 
-        
         document.getElementById('logout-btn').addEventListener('click', () => {
             localStorage.clear();
             window.location.replace('index.html');
@@ -230,13 +224,12 @@
         const debugCodecs = document.getElementById('debug-codecs');
 
         let hls = null;
-        window.cloudFrontParams = ""; // Global store for the XHR interceptor
+        window.cloudFrontParams = ""; 
 
         // --- THE MAGIC: XHR INTERCEPTOR ---
         const originalOpen = XMLHttpRequest.prototype.open;
         window.XMLHttpRequest.prototype.open = function(method, url) {
             if (typeof url === 'string' && url.includes('channel-contents.frommyarti.com') && window.cloudFrontParams) {
-                // Ensure we only append if it's not already there
                 if (!url.includes('Signature=')) {
                     const separator = url.includes('?') ? '&' : '?';
                     url = url + separator + window.cloudFrontParams;
@@ -245,12 +238,44 @@
             return originalOpen.apply(this, arguments);
         };
 
+        // --- PROGRESS TRACKING (NEW) ---
+        function saveProgress() {
+            if (video.currentTime > 0 && video.duration > 0) {
+                const progress = {
+                    currentTime: video.currentTime,
+                    duration: video.duration
+                };
+                localStorage.setItem(`fromm_progress_${postId}`, JSON.stringify(progress));
+            }
+        }
+
+        video.addEventListener('pause', saveProgress);
+        
+        // Save automatically every 20 seconds
+        setInterval(() => {
+            if (!video.paused) saveProgress();
+        }, 20000);
+
+        // Auto-resume when video metadata loads
+        video.addEventListener('loadedmetadata', () => {
+            const saved = localStorage.getItem(`fromm_progress_${postId}`);
+            if (saved) {
+                try {
+                    const { currentTime, duration } = JSON.parse(saved);
+                    // Only auto-seek if they haven't finished the video (> 98%)
+                    if (currentTime > 0 && currentTime < (duration * 0.98)) {
+                        video.currentTime = currentTime;
+                        updateStatus(`Resumed at ${formatTime(currentTime)}`);
+                    }
+                } catch(e) {}
+            }
+        });
+
         // --- MAIN LOGIC ---
         async function main() {
             try {
                 updateStatus('Fetching video info...');
                 
-                // 1. Fetch Post Details
                 const response = await fetch(`https://channel-api.frommyarti.com/media/posts/${postId}`, {
                     method: 'GET',
                     headers: {
@@ -270,17 +295,14 @@
                     
                     loaderMessage.textContent = 'Decrypting Stream URL...';
 
-                    // 2. Extract CloudFront Credentials
                     const pattern = /CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/;
                     const match = rawUrl.match(pattern);
 
                     if (!match) throw new Error("No video credentials found in URL.");
                     
-                    // AWS requires these EXACT names for URL parameters.
                     window.cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
-                    // 3. Extract Master Playlist URL
-                    let masterUrl = rawUrl.split('?')[0]; // Strip the bad CloudFront- parameters completely
+                    let masterUrl = rawUrl.split('?')[0]; 
                     const m3u8Match = masterUrl.match(/\S+\.m3u8/);
                     
                     if (m3u8Match) {
@@ -292,14 +314,11 @@
                         }
                     }
 
-                    // Attach the corrected AWS parameters for the initial master playlist request
                     masterUrl = masterUrl + '?' + window.cloudFrontParams;
 
-                    console.log("Cleaned Master URL:", masterUrl);
                     updateStatus('Initializing player...');
                     loaderMessage.textContent = 'Loading Stream...';
 
-                    // 4. Initialize HLS.js
                     initPlayer(masterUrl);
                 } else {
                     throw new Error("Invalid post data returned.");
@@ -353,7 +372,6 @@
             updateStatus(`Error`);
         }
 
-        // DOM Elements for Controls
         const playBtn = document.getElementById('play-btn');
         const muteBtn = document.getElementById('mute-btn');
         const volumeSlider = document.getElementById('volume-slider');
@@ -395,7 +413,7 @@
             lucide.createIcons();
         });
 
-        // --- SEEKING & DRAGGING (Fixed) ---
+        // --- SEEKING & DRAGGING ---
         let isDragging = false;
 
         function handleSeek(e) {
@@ -415,9 +433,9 @@
         document.addEventListener('mousemove', e => { if (isDragging) handleSeek(e); });
         document.addEventListener('mouseup', () => { isDragging = false; });
 
-        // --- TIME & BUFFER UPDATES (Fixed) ---
+        // --- TIME & BUFFER UPDATES ---
         video.addEventListener('timeupdate', () => {
-            if (isDragging) return; // Prevent fighting the user's drag!
+            if (isDragging) return; 
             
             const progress = (video.currentTime / video.duration) * 100;
             progressBar.style.width = `${progress}%`;
@@ -434,7 +452,6 @@
                 return;
             }
             let bufferedEnd = video.currentTime;
-            // Find the buffer range that contains our current playhead
             for (let i = 0; i < video.buffered.length; i++) {
                 if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) {
                     bufferedEnd = video.buffered.end(i);
@@ -486,13 +503,13 @@
             document.getElementById('quality-menu').classList.toggle('hidden'); 
         });
 
-        // --- SKIPPING (Arrow Keys & Double Click) ---
+        // --- SKIPPING ---
         function skip(duration) {
             if (!video.duration) return;
             video.currentTime += duration;
             const overlay = duration > 0 ? document.getElementById('skip-overlay-right') : document.getElementById('skip-overlay-left');
             overlay.classList.remove('show-skip-feedback');
-            void overlay.offsetWidth; // Trigger DOM reflow
+            void overlay.offsetWidth; 
             overlay.classList.add('show-skip-feedback');
             setTimeout(() => overlay.classList.remove('show-skip-feedback'), 500);
         }
@@ -515,7 +532,6 @@
             const container = document.getElementById('video-container');
             
             if (currentRot === 90 || currentRot === 270) {
-                // Calculate the exact aspect ratio scale to perfectly fit the screen
                 const scale = container.clientWidth / container.clientHeight;
                 video.style.transform = `rotate(${currentRot}deg) scale(${scale})`;
             } else {
@@ -533,7 +549,6 @@
             updateRotation();
         });
         
-        // Keep it scaled properly if the user resizes the window or goes fullscreen
         window.addEventListener('resize', updateRotation);
         
         document.getElementById('fullscreen-btn').addEventListener('click', () => {
