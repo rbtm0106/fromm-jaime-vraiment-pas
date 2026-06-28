@@ -16,12 +16,12 @@
         </div>
         <div class="flex gap-4 items-center">
             
-            <!-- NEW: The Link to the Converter Guide -->
-            <!-- NEW: The Link to the Converter Guide (Fixed!) -->
-            <a href="converter.html" id="guide-link" target="_blank" class="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 hover:border-blue-400 rounded-full text-xs font-semibold text-blue-400 transition-colors shadow-sm">
+
+            <!-- NEW: The Link to the Converter Guide (Forced New Tab!) -->
+            <button onclick="window.open('converter.html', '_blank')" class="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 hover:border-blue-400 rounded-full text-xs font-semibold text-blue-400 transition-colors shadow-sm cursor-pointer">
                 <i data-lucide="file-video" class="w-3.5 h-3.5"></i>
                 .ts to .mp4 Guide
-            </a>
+            </button>
 
             <!-- The Session Timer -->
             <div id="session-timer" class="hidden flex items-center gap-1.5 px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-xs font-mono text-gray-400 shadow-inner">
