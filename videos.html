@@ -244,7 +244,7 @@
                 progressStatus.textContent = "Downloading & Decrypting...";
 
                 // 3. Concurrent Download & Decrypt Loop
-                const CONCURRENCY_LIMIT = 5; 
+                const CONCURRENCY_LIMIT = 20; 
                 let downloadedChunks = new Array(totalChunks); 
                 let chunksDone = 0;
                 const iterator = tsUrls.entries(); 
