@@ -152,23 +152,26 @@
             }
         }
 
-        // --- DOWNLOAD STATE MANAGEMENT ---
+// --- DOWNLOAD STATE MANAGEMENT ---
         function getDownloadedList() {
             return JSON.parse(localStorage.getItem('fromm_downloaded') || '[]');
         }
 
         function markAsDownloaded(postId) {
             const list = getDownloadedList();
-            if (!list.includes(postId)) {
-                list.push(postId);
+            const idStr = String(postId); // Force to String
+            if (!list.includes(idStr)) {
+                list.push(idStr);
                 localStorage.setItem('fromm_downloaded', JSON.stringify(list));
             }
         }
 
         function updateButtonUI(postId) {
             const list = getDownloadedList();
+            const idStr = String(postId); // Force to String
             const btn = document.getElementById(`dl-btn-${postId}`);
-            if (list.includes(postId) && btn) {
+            
+            if (list.includes(idStr) && btn) {
                 // Change styles to indicate it's downloaded but still clickable
                 btn.classList.remove('bg-black/60', 'hover:bg-blue-600', 'text-white');
                 btn.classList.add('bg-green-900/80', 'hover:bg-green-600', 'text-green-400', 'border', 'border-green-600');
