@@ -307,7 +307,7 @@
             let trackIndex = 0;
 
             for (const code of standardCodes) {
-                const subUrl = `assets/subs/${postId}/${code}.vtt`;
+                const subUrl = `assets/subs/${postId}/fromm_${postId}.${code}.vtt`;
                 
                 try {
                     const res = await fetch(subUrl, { method: 'HEAD' });
