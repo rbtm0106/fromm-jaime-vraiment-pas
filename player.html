@@ -297,11 +297,7 @@
             const ccBtn = document.getElementById('cc-btn');
             const ccOptions = document.getElementById('cc-options');
             
-            // A standardized list of ISO 639-1 codes to probe for. 
-            // Add any 2-letter code here and the browser will automatically know its name!
             const standardCodes = ['en', 'ko', 'zh', 'ja', 'es', 'th', 'id', 'fr'];
-            
-            // The native browser API that magically translates 'ja' to 'Japanese'
             const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
             
             let trackIndex = 0;
@@ -313,7 +309,7 @@
                     const res = await fetch(subUrl, { method: 'HEAD' });
                     
                     if (res.ok) {
-                        const label = languageNames.of(code); // Auto-generates the human name
+                        const label = languageNames.of(code); 
 
                         // 1. Mount it to the video
                         const track = document.createElement('track');
@@ -347,6 +343,7 @@
                 ccBtn.title = "Subtitles/CC";
             }
         }
+
         // --- SUBTITLE CONTROLS ---
         function setSubtitle(index) {
             const tracks = video.textTracks;
@@ -364,7 +361,7 @@
             // Update UI Menu Styles
             const buttons = document.querySelectorAll('.cc-option-btn');
             buttons.forEach((btn, i) => {
-                if (i === index + 1) { // +1 because 'Off' is at index 0
+                if (i === index + 1) { 
                     btn.classList.add('text-blue-400', 'bg-blue-900/50');
                 } else {
                     btn.classList.remove('text-blue-400', 'bg-blue-900/50');
@@ -386,7 +383,7 @@
         document.getElementById('cc-btn').addEventListener('click', e => { 
             e.stopPropagation(); 
             document.getElementById('cc-menu').classList.toggle('hidden'); 
-            document.getElementById('quality-menu').classList.add('hidden'); // Close other menu
+            document.getElementById('quality-menu').classList.add('hidden'); 
         });
 
         // Close menus if clicking anywhere else
@@ -635,7 +632,7 @@
         document.getElementById('quality-btn').addEventListener('click', e => { 
             e.stopPropagation(); 
             document.getElementById('quality-menu').classList.toggle('hidden'); 
-            document.getElementById('cc-menu').classList.add('hidden'); // Close other menu
+            document.getElementById('cc-menu').classList.add('hidden'); 
         });
 
         // --- SKIPPING ---
