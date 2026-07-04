@@ -17,9 +17,13 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Smooth fading for controls */
-        .player-wrapper:hover .controls-overlay { opacity: 1; }
+        /* Smooth fading for controls & Idle state hiding */
         .controls-overlay { transition: opacity 0.3s ease; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); }
+        .player-wrapper:hover:not(.idle) .controls-overlay { opacity: 1; }
+        
+        /* Auto-hide cursor when idle */
+        .player-wrapper.idle { cursor: none; }
+
         #video { 
             transition: transform 0.3s ease-in-out;
             width: 100%;
@@ -27,8 +31,8 @@
             object-fit: contain;
         }
 
-        /* Subtitle Styling */
-        ::cue {
+        /* Custom Subtitle Overlay Styling */
+        .custom-cue {
             background: rgba(0, 0, 0, 0.75);
             color: #ffffff;
             font-family: sans-serif;
@@ -36,6 +40,17 @@
             text-shadow: 1px 1px 2px black;
             border-radius: 4px;
             padding: 4px 8px;
+            display: inline-block;
+            line-height: 1.4;
+        }
+
+        /* Dynamic Subtitle Positioning: Rest near bottom, glide up when controls show */
+        #custom-subtitle-container {
+            bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+        .player-wrapper:hover:not(.idle) #custom-subtitle-container {
+            transform: translateY(-64px); 
         }
 
         .landscape-mode { aspect-ratio: 16/9 !important; }
@@ -84,8 +99,10 @@
         </div>
 
         <div class="player-wrapper relative group bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 aspect-video" id="video-container">
-            <!-- Native crossOrigin flag required for loading local subtitle tracks -->
             <video id="video" class="w-full h-full object-contain" crossorigin="anonymous"></video>
+
+            <!-- The independent subtitle layer! -->
+            <div id="custom-subtitle-container" class="absolute left-0 right-0 w-full text-center pointer-events-none z-[15]"></div>
 
             <div id="skip-overlay-left" class="click-overlay"><div class="skip-feedback"><i data-lucide="rewind" class="w-12 h-12"></i></div></div>
             <div id="middle-click-overlay" class="click-overlay cursor-pointer"></div>
@@ -103,7 +120,7 @@
                 <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Retry</button>
             </div>
 
-            <div class="controls-overlay absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 flex flex-col gap-2 z-20">
+            <div class="controls-overlay absolute bottom-0 left-0 right-0 p-4 opacity-0 flex flex-col gap-2 z-20">
                 <div class="relative w-full h-2 group/progress cursor-pointer flex items-center" id="progress-container">
                     <div class="absolute w-full h-1 bg-gray-600 rounded-full"></div>
                     <div id="buffered-bar" class="absolute h-1 bg-gray-400 rounded-full transition-all duration-200" style="width: 0%"></div>
@@ -127,7 +144,6 @@
                         <button id="rotate-ccw-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="rotate-ccw" class="w-5 h-5"></i></button>
                         <button id="rotate-cw-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="rotate-cw" class="w-5 h-5"></i></button>
                         
-                        <!-- NEW: Closed Captions (Subtitles) Menu -->
                         <div class="relative">
                             <button id="cc-btn" class="flex items-center gap-1 text-sm font-medium transition-colors px-2 py-1 rounded bg-black/40 border border-transparent hover:border-gray-700 opacity-50 cursor-not-allowed" disabled title="No subtitles found">
                                 <i data-lucide="subtitles" class="w-4 h-4"></i>
@@ -135,12 +151,10 @@
                             <div id="cc-menu" class="hidden absolute bottom-full right-0 mb-2 w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
                                 <div class="py-1" id="cc-options">
                                     <button class="w-full text-left px-4 py-2 text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50 cc-option-btn" onclick="setSubtitle(-1)">Off</button>
-                                    <!-- Tracks injected dynamically -->
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Quality Menu -->
                         <div class="relative">
                             <button id="quality-btn" class="flex items-center gap-1 text-sm font-medium hover:text-blue-400 transition-colors px-2 py-1 rounded bg-black/40 border border-transparent hover:border-gray-700">
                                 <i data-lucide="settings" class="w-4 h-4"></i><span id="current-quality-label">Auto</span>
@@ -311,7 +325,6 @@
                     if (res.ok) {
                         const label = languageNames.of(code); 
 
-                        // 1. Mount it to the video
                         const track = document.createElement('track');
                         track.kind = 'subtitles';
                         track.label = label;
@@ -319,7 +332,6 @@
                         track.src = subUrl;
                         video.appendChild(track);
 
-                        // 2. Add it to our CC button menu
                         const btn = document.createElement('button');
                         btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors cc-option-btn';
                         btn.innerHTML = label;
@@ -335,7 +347,6 @@
                 }
             }
 
-            // If we found any subtitles, light up the CC button!
             if (trackIndex > 0) {
                 ccBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 ccBtn.classList.add('hover:text-blue-400');
@@ -347,18 +358,29 @@
         // --- SUBTITLE CONTROLS ---
         function setSubtitle(index) {
             const tracks = video.textTracks;
+            const subContainer = document.getElementById('custom-subtitle-container');
             
-            // Turn everything off first
             for (let i = 0; i < tracks.length; i++) {
                 tracks[i].mode = 'hidden';
+                tracks[i].oncuechange = null;
             }
+            subContainer.innerHTML = '';
             
-            // Turn the requested one on
             if (index >= 0 && tracks[index]) {
-                tracks[index].mode = 'showing';
+                tracks[index].mode = 'hidden'; 
+                
+                tracks[index].oncuechange = (e) => {
+                    const activeCues = e.target.activeCues;
+                    if (activeCues && activeCues.length > 0) {
+                        const cuesArray = Array.from(activeCues);
+                        const text = cuesArray.map(c => c.text.replace(/\n/g, '<br>')).join('<br>');
+                        subContainer.innerHTML = `<span class="custom-cue">${text}</span>`;
+                    } else {
+                        subContainer.innerHTML = '';
+                    }
+                };
             }
             
-            // Update UI Menu Styles
             const buttons = document.querySelectorAll('.cc-option-btn');
             buttons.forEach((btn, i) => {
                 if (i === index + 1) { 
@@ -368,7 +390,6 @@
                 }
             });
 
-            // Update CC Icon color
             const ccBtn = document.getElementById('cc-btn');
             if (index >= 0) {
                 ccBtn.classList.add('text-blue-400');
@@ -379,26 +400,22 @@
             document.getElementById('cc-menu').classList.add('hidden');
         }
 
-        // Toggle CC menu
         document.getElementById('cc-btn').addEventListener('click', e => { 
             e.stopPropagation(); 
             document.getElementById('cc-menu').classList.toggle('hidden'); 
             document.getElementById('quality-menu').classList.add('hidden'); 
         });
 
-        // Close menus if clicking anywhere else
         document.addEventListener('click', () => {
             document.getElementById('cc-menu').classList.add('hidden');
             document.getElementById('quality-menu').classList.add('hidden');
         });
-
 
         // --- MAIN LOGIC ---
         async function main() {
             try {
                 updateStatus('Fetching video info...');
                 
-                // Immediately check for subtitles in the background
                 loadSubtitles();
 
                 const response = await fetch(`https://channel-api.frommyarti.com/media/posts/${postId}`, {
@@ -658,13 +675,12 @@
 
         // --- ROTATION & FULLSCREEN ---
         let currentRot = 0;
+        const playerWrapper = document.getElementById('video-container');
         
         function updateRotation() {
             const video = document.getElementById('video');
-            const container = document.getElementById('video-container');
-            
             if (currentRot === 90 || currentRot === 270) {
-                const scale = container.clientWidth / container.clientHeight;
+                const scale = playerWrapper.clientWidth / playerWrapper.clientHeight;
                 video.style.transform = `rotate(${currentRot}deg) scale(${scale})`;
             } else {
                 video.style.transform = `rotate(${currentRot}deg) scale(1)`;
@@ -682,13 +698,42 @@
         });
         
         window.addEventListener('resize', updateRotation);
-        
-        document.getElementById('fullscreen-btn').addEventListener('click', () => {
+
+        function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                document.getElementById('video-container').requestFullscreen();
+                playerWrapper.requestFullscreen().catch(err => console.error(err));
             } else {
                 document.exitFullscreen();
             }
+        }
+        
+        document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+        // Double-click middle overlay for Fullscreen
+        document.getElementById('middle-click-overlay').addEventListener('dblclick', toggleFullscreen);
+
+        // --- IDLE MOUSE TRACKER (Hides UI after 2.5s) ---
+        let idleTimeout;
+
+        function resetIdleTimer() {
+            playerWrapper.classList.remove('idle');
+            clearTimeout(idleTimeout);
+            // Only hide controls automatically if the video is actually playing
+            if (!video.paused) {
+                idleTimeout = setTimeout(() => {
+                    playerWrapper.classList.add('idle');
+                }, 2500); 
+            }
+        }
+
+        playerWrapper.addEventListener('mousemove', resetIdleTimer);
+        playerWrapper.addEventListener('mouseleave', () => {
+            if (!video.paused) playerWrapper.classList.add('idle');
+        });
+        
+        video.addEventListener('play', resetIdleTimer);
+        video.addEventListener('pause', () => {
+            playerWrapper.classList.remove('idle');
+            clearTimeout(idleTimeout);
         });
 
         // Start
