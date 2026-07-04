@@ -455,7 +455,7 @@
 
             // Priority 2: Git Subtitle Manifest (Fallback layer)
             try {
-                const res = await fetch('assets/subs_manifest.json');
+                const res = await fetch(`assets/subs_manifest.json?t=${new Date().getTime()}`);
                 if (res.ok) {
                     const manifest = await res.json();
                     const availableLangs = manifest[postId];

@@ -508,7 +508,7 @@
             try {
                 if (Object.keys(subsManifest).length === 0) {
                     try {
-                        const manifestRes = await fetch('assets/subs_manifest.json');
+                        const manifestRes = await fetch(`assets/subs_manifest.json?t=${new Date().getTime()}`);
                         if (manifestRes.ok) {
                             subsManifest = await manifestRes.json();
                         }
