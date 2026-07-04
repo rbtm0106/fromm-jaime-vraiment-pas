@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,29 +7,22 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-
 <body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4 font-sans">
 
-    <nav
-        class="w-full max-w-4xl mb-4 p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow-lg border border-gray-700">
+    <nav class="w-full max-w-4xl mb-4 p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow-lg border border-gray-700">
         <div class="flex gap-4">
             <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors">Channels</a>
             <span class="text-white font-semibold border-b-2 border-green-400">Videos</span>
         </div>
         <div class="flex gap-4 items-center">
-
-            <button onclick="window.open('converter.html', '_blank')"
-                class="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 hover:border-blue-400 rounded-full text-xs font-semibold text-blue-400 transition-colors shadow-sm cursor-pointer">
+            <button onclick="window.open('converter.html', '_blank')" class="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 hover:border-blue-400 rounded-full text-xs font-semibold text-blue-400 transition-colors shadow-sm cursor-pointer">
                 <i data-lucide="file-video" class="w-3.5 h-3.5"></i>
                 .ts to .mp4 Guide
             </button>
-
-            <div id="session-timer"
-                class="hidden flex items-center gap-1.5 px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-xs font-mono text-gray-400 shadow-inner">
+            <div id="session-timer" class="hidden flex items-center gap-1.5 px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-xs font-mono text-gray-400 shadow-inner">
                 <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                 <span id="time-remaining">--:--</span>
             </div>
-
             <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
                 <i data-lucide="log-out" class="w-4 h-4"></i> Logout
             </button>
@@ -47,12 +39,10 @@
             </h1>
 
             <div class="flex gap-6 mb-6 border-b border-gray-700">
-                <button id="tab-lives" onclick="switchTab('live_record')"
-                    class="pb-2 font-bold text-blue-400 border-b-2 border-blue-400 transition-colors focus:outline-none">
+                <button id="tab-lives" onclick="switchTab('live_record')" class="pb-2 font-bold text-blue-400 border-b-2 border-blue-400 transition-colors focus:outline-none">
                     Live VODs
                 </button>
-                <button id="tab-videos" onclick="switchTab('video')"
-                    class="pb-2 font-bold text-gray-400 hover:text-gray-200 border-b-2 border-transparent transition-colors focus:outline-none">
+                <button id="tab-videos" onclick="switchTab('video')" class="pb-2 font-bold text-gray-400 hover:text-gray-200 border-b-2 border-transparent transition-colors focus:outline-none">
                     Uploaded Videos
                 </button>
             </div>
@@ -71,8 +61,7 @@
             </div>
 
             <div class="mt-8 flex justify-center">
-                <button id="load-more-btn"
-                    class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-full shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed hidden">
+                <button id="load-more-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-full shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed hidden">
                     Load More
                 </button>
                 <p id="no-more-text" class="text-gray-500 italic hidden mt-4">No more items to load.</p>
@@ -200,16 +189,18 @@
                 const rawUrl = postData.data.post.url;
                 const postType = postData.data.post.type;
 
-                // FIXED: Keep the exact "CloudFront-" prefix for all parameters
                 const match = rawUrl.match(/CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/);
                 if (!match) throw new Error("No keys found in URL.");
-                const cloudFrontParams = `CloudFront-Key-Pair-Id=${match[1]}&CloudFront-Signature=${match[2]}&CloudFront-Policy=${match[3]}`;
+                
+                // STRIPPED PREFIXES: AWS CloudFront rejects query params if the "CloudFront-" prefix is included!
+                const cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
                 let masterUrl = rawUrl.split('?')[0];
                 let subText = "";
                 let subBaseUrl = "";
 
                 if (postType === "live_record") {
+                    // --- LIVE VOD LOGIC (UNTOUCHED) ---
                     const m3u8Match = masterUrl.match(/\S+\.m3u8/);
                     if (m3u8Match) {
                         const baseSplit = m3u8Match[0].split("_");
@@ -221,14 +212,30 @@
                     const baseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
                     if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
 
-                    // Safely append params in case subUrl already has a query string
                     const paramSeparator = subUrl.includes('?') ? '&' : '?';
                     subText = await (await fetch(subUrl + paramSeparator + cloudFrontParams)).text();
                     subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
                 } else {
-                    // Standard video skips master playlist
-                    subText = await (await fetch(masterUrl + '?' + cloudFrontParams)).text();
-                    subBaseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
+                    // --- VIDEO LOGIC (MASTER PLAYLIST FIX) ---
+                    const masterText = await (await fetch(masterUrl + '?' + cloudFrontParams)).text();
+                    
+                    // Filter out the actual sub-playlist streams from the master text
+                    const m3u8Lines = masterText.split('\n').filter(line => line.trim().endsWith('.m3u8'));
+                    
+                    if (m3u8Lines.length > 0) {
+                        // Grab the last one in the list (this is almost always the 1080p/highest resolution)
+                        let subUrl = m3u8Lines[m3u8Lines.length - 1].trim();
+                        const baseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
+                        if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
+
+                        const paramSeparator = subUrl.includes('?') ? '&' : '?';
+                        subText = await (await fetch(subUrl + paramSeparator + cloudFrontParams)).text();
+                        subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
+                    } else {
+                        // Fallback just in case it wasn't a master playlist
+                        subText = masterText;
+                        subBaseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
+                    }
                 }
 
                 progressStatus.textContent = "Parsing playlist...";
@@ -247,12 +254,11 @@
                     let keyUrl = keyMatch[1];
                     if (!keyUrl.startsWith('http')) keyUrl = subBaseUrl + keyUrl;
 
-                    // Apply proper URL parameters to the key file
                     let keyUrlWithParams = keyUrl;
-                    if (!keyUrlWithParams.includes('CloudFront-Key-Pair-Id')) {
+                    if (!keyUrlWithParams.includes('Key-Pair-Id')) {
                         keyUrlWithParams += (keyUrlWithParams.includes('?') ? '&' : '?') + cloudFrontParams;
                     }
-                    
+
                     const keyRes = await fetch(keyUrlWithParams);
                     if (!keyRes.ok) throw new Error("Failed to fetch AES key. (Status: " + keyRes.status + ")");
 
@@ -273,8 +279,7 @@
                     .map(line => {
                         let tsUrl = line.trim();
                         if (!tsUrl.startsWith('http')) tsUrl = subBaseUrl + tsUrl;
-                        // Apply proper URL parameters to every .ts chunk
-                        if (!tsUrl.includes('CloudFront-Key-Pair-Id')) {
+                        if (!tsUrl.includes('Key-Pair-Id')) {
                             tsUrl += (tsUrl.includes('?') ? '&' : '?') + cloudFrontParams;
                         }
                         return tsUrl;
@@ -563,5 +568,4 @@
         fetchVideos();
     </script>
 </body>
-
 </html>
