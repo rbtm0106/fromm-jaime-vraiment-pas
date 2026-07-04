@@ -8,9 +8,13 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        /* Custom range slider styling */
-/* Custom range slider styling */
-        input[type=range] { -webkit-appearance: none; background: transparent; }
+       /* Custom range slider styling */
+        input[type=range] { 
+            -webkit-appearance: none; 
+            background: #4b5563; /* A nice visible gray track */
+            height: 4px; /* Thickness of the line */
+            border-radius: 4px;
+        }
         input[type=range]:focus { outline: none; }
         
         /* Draw the custom white drag circle for Chrome/Safari/Edge */
@@ -22,6 +26,7 @@
             background: #ffffff; 
             cursor: pointer; 
             box-shadow: 0 0 2px rgba(0,0,0,0.5);
+            margin-top: -4px; /* Perfectly centers the dot on the line */
         }
 
         /* Draw the custom white drag circle for Firefox */
