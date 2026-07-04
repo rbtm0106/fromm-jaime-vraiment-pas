@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # Needed to push the JSON back to the repo
-  pages: write     # Needed for GitHub Pages deployment
-  id-token: write  # Needed for GitHub Pages deployment
+  contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: "pages"
@@ -23,12 +23,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0 # THIS IS THE FIX: Gets the history so Git can rebase
 
       - name: Build JSON Manifest
         run: |
           python3 -c '
           import os, json, re
           
+          print("--- STARTING MANIFEST GENERATION ---")
           manifest = {}
           subs_dir = "assets/subs"
           
@@ -39,16 +43,19 @@ jobs:
                       langs = []
                       for file in os.listdir(post_path):
                           if file.endswith(".vtt"):
-                              # Extracts "en" from "fromm_7562.en.vtt"
                               match = re.search(r"\.([a-z]{2})\.vtt$", file)
                               if match:
                                   langs.append(match.group(1))
                       
                       if langs:
                           manifest[post_id] = langs
+                          print(f"Found Post ID: {post_id} | Languages: {langs}")
+          else:
+              print(f"Warning: Directory {subs_dir} does not exist!")
           
           with open("assets/subs_manifest.json", "w") as f:
               json.dump(manifest, f)
+          print("--- MANIFEST SAVED ---")
           '
 
       - name: Commit and Push Manifest to Repo
@@ -56,8 +63,19 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add assets/subs_manifest.json
-          # Commit the file, pull any new changes that happened while running, then push
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update subtitle manifest" && git pull --rebase origin main && git push)
+          
+          # Check if the file actually changed
+          if ! git diff --staged --quiet; then
+            echo "Changes detected. Committing and pushing..."
+            git commit -m "Auto-update subtitle manifest"
+            
+            # Safely fetch the absolute latest code, put our commit on top, and push
+            git fetch origin main
+            git rebase origin/main
+            git push origin main
+          else
+            echo "No subtitle changes detected. Skipping commit."
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
