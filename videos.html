@@ -328,8 +328,9 @@
             }
         }
         
-        // --- MASTER STATE ---
+// --- MASTER STATE ---
         let allPosts = []; // Master memory store for everything we fetch
+        let subsManifest = {}; // 
         let currentTab = 'live_record'; // Default tab
         let isLast = true;
         let lastPost = null;
@@ -474,12 +475,16 @@
             if (loadMore) loadMoreBtn.textContent = "Loading...";
 
             try {
-                // NEW: Fetch subtitle manifest ONCE per page load
+                // NEW: Fetch subtitle manifest ONCE per page load (fails safely if missing)
                 if (Object.keys(subsManifest).length === 0) {
                     try {
                         const manifestRes = await fetch('assets/subs_manifest.json');
-                        if (manifestRes.ok) subsManifest = await manifestRes.json();
-                    } catch(e) {}
+                        if (manifestRes.ok) {
+                            subsManifest = await manifestRes.json();
+                        }
+                    } catch(e) {
+                        console.log("No subtitle manifest found yet, skipping CC badges.");
+                    }
                 }
                 
                 let url = `https://channel-api.frommyarti.com/media/posts?labelId=0&channelId=${channelId}&limit=50`;

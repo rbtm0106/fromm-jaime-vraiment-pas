@@ -345,12 +345,14 @@
             try {
                 // Fetch the master manifest
                 const res = await fetch('assets/subs_manifest.json');
-                if (!res.ok) return; // No manifest yet, exit silently
+                
+                // SAFETY NET: If the file doesn't exist (404), exit silently as "ok"
+                if (!res.ok) return; 
                 
                 const manifest = await res.json();
                 const availableLangs = manifest[postId];
                 
-                // If this video isn't in the manifest, exit silently
+                // If this specific video isn't in the manifest, exit silently
                 if (!availableLangs || availableLangs.length === 0) return;
 
                 let trackIndex = 0;
@@ -385,11 +387,11 @@
                     ccBtn.title = "Subtitles/CC";
                 }
             } catch (e) {
-                console.log("Could not load subtitle manifest.");
+                console.log("Could not load subtitle manifest, playing without subtitles.");
             }
         }
 
-        
+
         // --- SUBTITLE CONTROLS ---
         function setSubtitle(index) {
             const tracks = video.textTracks;
