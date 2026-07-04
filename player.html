@@ -596,9 +596,9 @@
 
                     window.cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
-                    // NEW: Smart Stream Logic based on Video Type
-                    let streamUrl = rawUrl; // Default: Directly use the stream URL
-
+                    // Fix: Strip the broken AWS query string and apply our corrected one
+                    let streamUrl = rawUrl.split('?')[0] + '?' + window.cloudFrontParams;
+                    
                     if (postData.data.post.type === "live_record") {
                         // Live VODs have a master playlist that we need to rebuild
                         let masterUrl = rawUrl.split('?')[0];
