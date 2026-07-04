@@ -9,9 +9,31 @@
 
     <style>
         /* Custom range slider styling */
+/* Custom range slider styling */
         input[type=range] { -webkit-appearance: none; background: transparent; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; }
         input[type=range]:focus { outline: none; }
+        
+        /* Draw the custom white drag circle for Chrome/Safari/Edge */
+        input[type=range]::-webkit-slider-thumb { 
+            -webkit-appearance: none; 
+            height: 12px; 
+            width: 12px; 
+            border-radius: 50%; 
+            background: #ffffff; 
+            cursor: pointer; 
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+
+        /* Draw the custom white drag circle for Firefox */
+        input[type=range]::-moz-range-thumb {
+            height: 12px; 
+            width: 12px; 
+            border-radius: 50%; 
+            background: #ffffff; 
+            cursor: pointer; 
+            border: none;
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
 
         /* Hide scrollbar for menus */
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -21,8 +43,11 @@
         .controls-overlay { transition: opacity 0.3s ease; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); }
         .player-wrapper:hover:not(.idle) .controls-overlay { opacity: 1; }
         
-        /* Auto-hide cursor when idle */
-        .player-wrapper.idle { cursor: none; }
+        /* Auto-hide cursor when idle (Forced on all children) */
+        .player-wrapper.idle,
+        .player-wrapper.idle * { 
+            cursor: none !important; 
+        }
 
         #video { 
             transition: transform 0.3s ease-in-out;
@@ -57,11 +82,11 @@
         .player-wrapper:fullscreen { aspect-ratio: auto; }
         .player-wrapper:fullscreen #video { object-fit: contain; }
 
-        /* Overlays */
-        .click-overlay { position: absolute; top: 0; bottom: 0; width: 30%; z-index: 15; }
+        /* Overlays (YouTube Hybrid 20/60/20 Split) */
+        .click-overlay { position: absolute; top: 0; bottom: 0; width: 20%; z-index: 15; }
         #skip-overlay-left { left: 0; }
         #skip-overlay-right { right: 0; }
-        #middle-click-overlay { left: 30%; width: 40%; }
+        #middle-click-overlay { left: 20%; width: 60%; }
 
         /* Feedback icons */
         .skip-feedback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
@@ -104,9 +129,9 @@
             <!-- The independent subtitle layer! -->
             <div id="custom-subtitle-container" class="absolute left-0 right-0 w-full text-center pointer-events-none z-[15]"></div>
 
-            <div id="skip-overlay-left" class="click-overlay"><div class="skip-feedback"><i data-lucide="rewind" class="w-12 h-12"></i></div></div>
+            <div id="skip-overlay-left" class="click-overlay cursor-pointer"><div class="skip-feedback"><i data-lucide="rewind" class="w-12 h-12"></i></div></div>
             <div id="middle-click-overlay" class="click-overlay cursor-pointer"></div>
-            <div id="skip-overlay-right" class="click-overlay"><div class="skip-feedback"><i data-lucide="fast-forward" class="w-12 h-12"></i></div></div>
+            <div id="skip-overlay-right" class="click-overlay cursor-pointer"><div class="skip-feedback"><i data-lucide="fast-forward" class="w-12 h-12"></i></div></div>
 
             <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -533,7 +558,6 @@
 
         // --- PLAYBACK CONTROLS ---
         playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
-        document.getElementById('middle-click-overlay').addEventListener('click', () => video.paused ? video.play() : video.pause());
         
         video.addEventListener('play', () => {
             playBtn.innerHTML = '<i data-lucide="pause" class="w-6 h-6 fill-current"></i>';
@@ -652,27 +676,6 @@
             document.getElementById('cc-menu').classList.add('hidden'); 
         });
 
-        // --- SKIPPING ---
-        function skip(duration) {
-            if (!video.duration) return;
-            video.currentTime += duration;
-            const overlay = duration > 0 ? document.getElementById('skip-overlay-right') : document.getElementById('skip-overlay-left');
-            overlay.classList.remove('show-skip-feedback');
-            void overlay.offsetWidth; 
-            overlay.classList.add('show-skip-feedback');
-            setTimeout(() => overlay.classList.remove('show-skip-feedback'), 500);
-        }
-
-        document.getElementById('skip-overlay-left').addEventListener('dblclick', () => skip(-10));
-        document.getElementById('skip-overlay-right').addEventListener('dblclick', () => skip(10));
-
-        document.addEventListener('keydown', e => {
-            if (document.activeElement.tagName === 'INPUT') return;
-            if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-10); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); skip(10); }
-            if (e.key === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
-        });
-
         // --- ROTATION & FULLSCREEN ---
         let currentRot = 0;
         const playerWrapper = document.getElementById('video-container');
@@ -708,8 +711,53 @@
         }
         
         document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
-        // Double-click middle overlay for Fullscreen
+
+
+        // --- SKIPPING & OVERLAY CLICKS (YOUTUBE HYBRID EXPERIENCE) ---
+        function skip(duration) {
+            if (!video.duration) return;
+            video.currentTime += duration;
+            const overlay = duration > 0 ? document.getElementById('skip-overlay-right') : document.getElementById('skip-overlay-left');
+            overlay.classList.remove('show-skip-feedback');
+            void overlay.offsetWidth; 
+            overlay.classList.add('show-skip-feedback');
+            setTimeout(() => overlay.classList.remove('show-skip-feedback'), 500);
+        }
+
+        // Left & Right Edges: Dedicated solely to double-click skipping.
+        document.getElementById('skip-overlay-left').addEventListener('dblclick', () => skip(-10));
+        document.getElementById('skip-overlay-right').addEventListener('dblclick', () => skip(10));
+
+        // Center Area: Instant Play/Pause, Double-Click Fullscreen
+        document.getElementById('middle-click-overlay').addEventListener('click', () => {
+            video.paused ? video.play() : video.pause();
+        });
         document.getElementById('middle-click-overlay').addEventListener('dblclick', toggleFullscreen);
+
+        // Keyboard Shortcuts (Standard Desktop YouTube configuration)
+        document.addEventListener('keydown', e => {
+            if (document.activeElement.tagName === 'INPUT') return;
+            
+            switch(e.key.toLowerCase()) {
+                case 'arrowleft': 
+                case 'j': 
+                    e.preventDefault(); skip(-10); break;
+                case 'arrowright': 
+                case 'l': 
+                    e.preventDefault(); skip(10); break;
+                case ' ': 
+                case 'k': 
+                    e.preventDefault(); video.paused ? video.play() : video.pause(); break;
+                case 'f': 
+                    e.preventDefault(); toggleFullscreen(); break;
+                case 'm': 
+                    e.preventDefault(); 
+                    video.muted = !video.muted; 
+                    document.getElementById('volume-slider').value = video.muted ? 0 : video.volume;
+                    break;
+            }
+        });
+
 
         // --- IDLE MOUSE TRACKER (Hides UI after 2.5s) ---
         let idleTimeout;
