@@ -1,36 +1,20 @@
-# Simple workflow for deploying static content to GitHub Pages
 name: Deploy static content to Pages
 
 on:
-  # Wait for the Subtitle Manifest workflow to finish successfully
-  workflow_run:
-    workflows: ["Generate Subtitle Manifest"]
-    types:
-      - completed
-      
-  # Also deploy on normal pushes to main (for HTML/CSS changes)
   push:
     branches: ["main"]
-    paths-ignore:
-      - 'assets/subs/**' # Don't deploy on subtitle changes directly, let the manifest workflow trigger it
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write  # Needed to push the JSON back to the repo
+  pages: write     # Needed for GitHub Pages deployment
+  id-token: write  # Needed for GitHub Pages deployment
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
     environment:
       name: github-pages
@@ -39,13 +23,50 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Build JSON Manifest
+        run: |
+          python3 -c '
+          import os, json, re
+          
+          manifest = {}
+          subs_dir = "assets/subs"
+          
+          if os.path.exists(subs_dir):
+              for post_id in os.listdir(subs_dir):
+                  post_path = os.path.join(subs_dir, post_id)
+                  if os.path.isdir(post_path):
+                      langs = []
+                      for file in os.listdir(post_path):
+                          if file.endswith(".vtt"):
+                              # Extracts "en" from "fromm_7562.en.vtt"
+                              match = re.search(r"\.([a-z]{2})\.vtt$", file)
+                              if match:
+                                  langs.append(match.group(1))
+                      
+                      if langs:
+                          manifest[post_id] = langs
+          
+          with open("assets/subs_manifest.json", "w") as f:
+              json.dump(manifest, f)
+          '
+
+      - name: Commit and Push Manifest to Repo
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add assets/subs_manifest.json
+          # Only pushes a new commit if the JSON file actually changed
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update subtitle manifest" && git push)
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
           path: '.'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
