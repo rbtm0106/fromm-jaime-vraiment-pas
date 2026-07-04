@@ -41,7 +41,6 @@
                 Channel Media
             </h1>
 
-            <!-- NEW: Filter Tabs -->
             <div class="flex gap-6 mb-6 border-b border-gray-700">
                 <button id="tab-lives" onclick="switchTab('live_record')" class="pb-2 font-bold text-blue-400 border-b-2 border-blue-400 transition-colors focus:outline-none">
                     Live VODs
@@ -191,29 +190,39 @@
                 });
                 const postData = await postRes.json();
                 const rawUrl = postData.data.post.url;
+                const postType = postData.data.post.type; // Extract post type to check format
 
                 const match = rawUrl.match(/CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/);
                 if (!match) throw new Error("No keys found in URL.");
                 const cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
                 let masterUrl = rawUrl.split('?')[0];
-                const m3u8Match = masterUrl.match(/\S+\.m3u8/);
-                if (m3u8Match) {
-                    const baseSplit = m3u8Match[0].split("_");
-                    if (baseSplit.length > 1) masterUrl = baseSplit.slice(0, -1).join("_") + "." + baseSplit.pop().split(".").pop();
+                let subText = "";
+                let subBaseUrl = "";
+
+                // NEW: Handle different formats for "live_record" vs standard "video"
+                if (postType === "live_record") {
+                    const m3u8Match = masterUrl.match(/\S+\.m3u8/);
+                    if (m3u8Match) {
+                        const baseSplit = m3u8Match[0].split("_");
+                        if (baseSplit.length > 1) masterUrl = baseSplit.slice(0, -1).join("_") + "." + baseSplit.pop().split(".").pop();
+                    }
+                    
+                    const masterText = await (await fetch(masterUrl + '?' + cloudFrontParams)).text();
+                    let subUrl = masterText.split('\n').find(line => line.includes('.m3u8')).trim();
+                    const baseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
+                    if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
+
+                    subText = await (await fetch(subUrl + '?' + cloudFrontParams)).text();
+                    subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
+                } else {
+                    // Standard video skips master playlist
+                    subText = await (await fetch(masterUrl + '?' + cloudFrontParams)).text();
+                    subBaseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
                 }
 
                 progressStatus.textContent = "Parsing playlist...";
 
-                const masterText = await (await fetch(masterUrl + '?' + cloudFrontParams)).text();
-                let subUrl = masterText.split('\n').find(line => line.includes('.m3u8')).trim();
-                
-                const baseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
-                if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
-
-                const subText = await (await fetch(subUrl + '?' + cloudFrontParams)).text();
-                const subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
-                
                 let cryptoKey = null;
                 let globalIv = null;
                 let mediaSequence = 0;
@@ -328,9 +337,9 @@
             }
         }
         
-// --- MASTER STATE ---
+        // --- MASTER STATE ---
         let allPosts = []; // Master memory store for everything we fetch
-        let subsManifest = {}; // 
+        let subsManifest = {}; // Holds our subtitle map
         let currentTab = 'live_record'; // Default tab
         let isLast = true;
         let lastPost = null;
@@ -475,7 +484,7 @@
             if (loadMore) loadMoreBtn.textContent = "Loading...";
 
             try {
-                // NEW: Fetch subtitle manifest ONCE per page load (fails safely if missing)
+                // NEW: Fetch subtitle manifest safely ONCE per page load
                 if (Object.keys(subsManifest).length === 0) {
                     try {
                         const manifestRes = await fetch('assets/subs_manifest.json');
@@ -513,11 +522,9 @@
                     
                     if (rawPosts.length > 0) {
                         lastPost = rawPosts[rawPosts.length - 1];
-                        // Accumulate all posts into memory
                         allPosts = [...allPosts, ...rawPosts];
                     }
 
-                    // Render the UI based on the current active tab
                     renderGrid();
                 }
             } catch (err) {

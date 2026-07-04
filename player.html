@@ -125,7 +125,12 @@
     <main class="w-full max-w-4xl">
         <div class="mb-4 flex justify-between items-end">
             <h1 id="video-title" class="text-2xl font-bold text-blue-400 truncate w-3/4">Loading...</h1>
-            <p id="post-id-display" class="text-gray-500 text-sm font-mono"></p>
+            <div class="flex items-center gap-3">
+                <button id="copy-url-btn" class="hidden text-gray-400 hover:text-white transition-colors" title="Copy Shared Link">
+                    <i data-lucide="link" class="w-4 h-4"></i>
+                </button>
+                <p id="post-id-display" class="text-gray-500 text-sm font-mono"></p>
+            </div>
         </div>
 
         <div class="player-wrapper relative group bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 aspect-video" id="video-container">
@@ -336,28 +341,23 @@
             }
         });
 
-// --- SUBTITLE SCANNER (JSON MANIFEST VERSION) ---
+        // --- SUBTITLE SCANNER (JSON MANIFEST VERSION) ---
         async function loadSubtitles() {
             const ccBtn = document.getElementById('cc-btn');
             const ccOptions = document.getElementById('cc-options');
             const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
             
             try {
-                // Fetch the master manifest
                 const res = await fetch('assets/subs_manifest.json');
-                
-                // SAFETY NET: If the file doesn't exist (404), exit silently as "ok"
-                if (!res.ok) return; 
+                if (!res.ok) return; // File missing is OK!
                 
                 const manifest = await res.json();
                 const availableLangs = manifest[postId];
                 
-                // If this specific video isn't in the manifest, exit silently
                 if (!availableLangs || availableLangs.length === 0) return;
 
                 let trackIndex = 0;
                 
-                // Only build tracks for languages we KNOW exist
                 for (const code of availableLangs) {
                     const subUrl = `assets/subs/${postId}/fromm_${postId}.${code}.vtt`;
                     const label = languageNames.of(code) || code; 
@@ -390,7 +390,6 @@
                 console.log("Could not load subtitle manifest, playing without subtitles.");
             }
         }
-
 
         // --- SUBTITLE CONTROLS ---
         function setSubtitle(index) {
@@ -471,6 +470,21 @@
                 if (postData.success && postData.data && postData.data.post) {
                     const rawUrl = postData.data.post.url;
                     document.getElementById('video-title').textContent = postData.data.post.title;
+
+                    // NEW: Setup Shared URL copy button if available
+                    if (postData.data.post.sharedUrl) {
+                        const copyBtn = document.getElementById('copy-url-btn');
+                        copyBtn.classList.remove('hidden');
+                        copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(postData.data.post.sharedUrl);
+                            copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-400"></i>';
+                            lucide.createIcons();
+                            setTimeout(() => {
+                                copyBtn.innerHTML = '<i data-lucide="link" class="w-4 h-4"></i>';
+                                lucide.createIcons();
+                            }, 2000);
+                        };
+                    }
                     
                     loaderMessage.textContent = 'Decrypting Stream URL...';
 
@@ -481,24 +495,28 @@
                     
                     window.cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
-                    let masterUrl = rawUrl.split('?')[0]; 
-                    const m3u8Match = masterUrl.match(/\S+\.m3u8/);
+                    // NEW: Smart Stream Logic based on Video Type
+                    let streamUrl = rawUrl; // Default: Directly use the stream URL
                     
-                    if (m3u8Match) {
-                        const baseSplit = m3u8Match[0].split("_");
-                        if (baseSplit.length > 1) {
-                            const lastPart = baseSplit.pop();
-                            const extension = lastPart.split(".").pop();
-                            masterUrl = baseSplit.join("_") + "." + extension;
+                    if (postData.data.post.type === "live_record") {
+                        // Live VODs have a master playlist that we need to rebuild
+                        let masterUrl = rawUrl.split('?')[0]; 
+                        const m3u8Match = masterUrl.match(/\S+\.m3u8/);
+                        if (m3u8Match) {
+                            const baseSplit = m3u8Match[0].split("_");
+                            if (baseSplit.length > 1) {
+                                const lastPart = baseSplit.pop();
+                                const extension = lastPart.split(".").pop();
+                                masterUrl = baseSplit.join("_") + "." + extension;
+                            }
                         }
+                        streamUrl = masterUrl + '?' + window.cloudFrontParams;
                     }
-
-                    masterUrl = masterUrl + '?' + window.cloudFrontParams;
 
                     updateStatus('Initializing player...');
                     loaderMessage.textContent = 'Loading Stream...';
 
-                    initPlayer(masterUrl);
+                    initPlayer(streamUrl);
                 } else {
                     throw new Error("Invalid post data returned.");
                 }
