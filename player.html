@@ -336,55 +336,60 @@
             }
         });
 
-        // --- SUBTITLE SCANNER ---
+// --- SUBTITLE SCANNER (JSON MANIFEST VERSION) ---
         async function loadSubtitles() {
             const ccBtn = document.getElementById('cc-btn');
             const ccOptions = document.getElementById('cc-options');
-            
-            const standardCodes = ['en', 'ko', 'zh', 'ja', 'es', 'th', 'id', 'fr'];
             const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
             
-            let trackIndex = 0;
-
-            for (const code of standardCodes) {
-                const subUrl = `assets/subs/${postId}/fromm_${postId}.${code}.vtt`;
+            try {
+                // Fetch the master manifest
+                const res = await fetch('assets/subs_manifest.json');
+                if (!res.ok) return; // No manifest yet, exit silently
                 
-                try {
-                    const res = await fetch(subUrl, { method: 'HEAD' });
+                const manifest = await res.json();
+                const availableLangs = manifest[postId];
+                
+                // If this video isn't in the manifest, exit silently
+                if (!availableLangs || availableLangs.length === 0) return;
+
+                let trackIndex = 0;
+                
+                // Only build tracks for languages we KNOW exist
+                for (const code of availableLangs) {
+                    const subUrl = `assets/subs/${postId}/fromm_${postId}.${code}.vtt`;
+                    const label = languageNames.of(code) || code; 
+
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles';
+                    track.label = label;
+                    track.srclang = code;
+                    track.src = subUrl;
+                    video.appendChild(track);
+
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors cc-option-btn';
+                    btn.innerHTML = label;
                     
-                    if (res.ok) {
-                        const label = languageNames.of(code); 
-
-                        const track = document.createElement('track');
-                        track.kind = 'subtitles';
-                        track.label = label;
-                        track.srclang = code;
-                        track.src = subUrl;
-                        video.appendChild(track);
-
-                        const btn = document.createElement('button');
-                        btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 transition-colors cc-option-btn';
-                        btn.innerHTML = label;
-                        
-                        const currentIndex = trackIndex; 
-                        btn.onclick = () => setSubtitle(currentIndex);
-                        ccOptions.appendChild(btn);
-                        
-                        trackIndex++;
-                    }
-                } catch (e) {
-                    // Silently ignore if file doesn't exist
+                    const currentIndex = trackIndex; 
+                    btn.onclick = () => setSubtitle(currentIndex);
+                    ccOptions.appendChild(btn);
+                    
+                    trackIndex++;
                 }
-            }
 
-            if (trackIndex > 0) {
-                ccBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                ccBtn.classList.add('hover:text-blue-400');
-                ccBtn.disabled = false;
-                ccBtn.title = "Subtitles/CC";
+                if (trackIndex > 0) {
+                    ccBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    ccBtn.classList.add('hover:text-blue-400');
+                    ccBtn.disabled = false;
+                    ccBtn.title = "Subtitles/CC";
+                }
+            } catch (e) {
+                console.log("Could not load subtitle manifest.");
             }
         }
 
+        
         // --- SUBTITLE CONTROLS ---
         function setSubtitle(index) {
             const tracks = video.textTracks;
