@@ -80,20 +80,23 @@
             object-fit: contain;
         }
 
-        /* Custom Subtitle Overlay Styling */
+        /* --- RESPONSIVE SUBTITLE FIX --- */
+        .player-wrapper {
+            container-type: inline-size;
+            container-name: player;
+        }
+
         .custom-cue {
             background: rgba(0, 0, 0, 0.75);
             color: #ffffff;
             font-family: sans-serif;
-            font-size: 1.5rem;
+            /* Scales cleanly based on container width (4cqw) with hard minimums/maximums */
+            font-size: clamp(1rem, 4cqw, 3.5rem);
             text-shadow: 1px 1px 2px black;
             border-radius: 4px;
-            padding: 4px 8px;
+            padding: 0.3em 0.6em;
             display: inline-block;
             line-height: 1.4;
-        }
-        .player-wrapper:fullscreen .custom-cue {
-            font-size: 3.3rem;
         }
 
         /* Dynamic Subtitle Positioning: Rest near bottom, glide up when controls show */
@@ -171,39 +174,48 @@
                 transform: translate(-50%, -50%) scale(1);
             }
         }
+
+        /* --- MOBILE SPECIFIC CSS FIXES --- */
+        @media (max-width: 640px) {
+            /* Force volume slider to be visible on touch devices since they don't have hover */
+            .group\/vol .w-0 { 
+                width: 64px !important; 
+                overflow: visible !important; 
+            }
+        }
     </style>
 </head>
 
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4 font-sans">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-2 sm:p-4 font-sans">
 
     <nav
-        class="w-full max-w-4xl mb-4 p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow border border-gray-700">
-        <div class="flex gap-4">
+        class="w-full max-w-4xl mb-4 p-3 sm:p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow border border-gray-700">
+        <div class="flex gap-3 sm:gap-4 text-sm sm:text-base">
             <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors">Channels</a>
             <a href="#" id="back-to-videos" class="text-blue-400 hover:text-blue-300 transition-colors">Videos</a>
         </div>
-        <div class="flex gap-4 items-center">
+        <div class="flex gap-2 sm:gap-4 items-center">
             <div id="session-timer"
-                class="hidden flex items-center gap-1.5 px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-xs font-mono text-gray-400 shadow-inner">
-                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                class="hidden flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-[10px] sm:text-xs font-mono text-gray-400 shadow-inner">
+                <i data-lucide="clock" class="w-3 h-3 sm:w-3.5 sm:h-3.5"></i>
                 <span id="time-remaining">--:--</span>
             </div>
 
-            <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
-                <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+            <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
+                <i data-lucide="log-out" class="w-4 h-4"></i> <span class="hidden sm:inline">Logout</span>
             </button>
         </div>
     </nav>
 
     <main class="w-full max-w-4xl">
-        <div class="mb-4 flex justify-between items-end">
-            <h1 id="video-title" class="text-2xl font-bold text-blue-400 truncate w-3/4">Loading...</h1>
-            <div class="flex items-center gap-3">
-                <button id="copy-url-btn" class="hidden text-gray-400 hover:text-white transition-colors"
+        <div class="mb-2 sm:mb-4 flex justify-between items-end gap-2">
+            <h1 id="video-title" class="text-lg sm:text-2xl font-bold text-blue-400 truncate w-[70%]">Loading...</h1>
+            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+                <button id="copy-url-btn" class="hidden text-gray-400 hover:text-white transition-colors p-1"
                     title="Copy Shared Link">
                     <i data-lucide="link" class="w-4 h-4"></i>
                 </button>
-                <p id="post-id-display" class="text-gray-500 text-sm font-mono"></p>
+                <p id="post-id-display" class="text-gray-500 text-xs sm:text-sm font-mono"></p>
             </div>
         </div>
 
@@ -216,29 +228,29 @@
                 class="absolute left-0 right-0 w-full text-center pointer-events-none z-[15]"></div>
 
             <div id="skip-overlay-left" class="click-overlay cursor-pointer">
-                <div class="skip-feedback"><i data-lucide="rewind" class="w-12 h-12"></i></div>
+                <div class="skip-feedback"><i data-lucide="rewind" class="w-10 h-10 sm:w-12 sm:h-12"></i></div>
             </div>
             <div id="middle-click-overlay" class="click-overlay cursor-pointer"></div>
             <div id="skip-overlay-right" class="click-overlay cursor-pointer">
-                <div class="skip-feedback"><i data-lucide="fast-forward" class="w-12 h-12"></i></div>
+                <div class="skip-feedback"><i data-lucide="fast-forward" class="w-10 h-10 sm:w-12 sm:h-12"></i></div>
             </div>
 
             <div id="loader"
                 class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                <p id="loader-message" class="mt-4 text-gray-300">Fetching API...</p>
+                <div class="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-500"></div>
+                <p id="loader-message" class="mt-4 text-sm sm:text-base text-gray-300">Fetching API...</p>
             </div>
 
             <div id="error-display"
                 class="hidden absolute inset-0 flex-col items-center justify-center bg-black/90 z-20 text-center p-6">
-                <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mb-2"></i>
-                <h3 class="text-lg font-bold text-white">Playback Error</h3>
-                <p id="error-message" class="text-gray-400 text-sm mt-1">Unable to load stream.</p>
+                <i data-lucide="alert-triangle" class="w-10 h-10 sm:w-12 sm:h-12 text-red-500 mb-2"></i>
+                <h3 class="text-base sm:text-lg font-bold text-white">Playback Error</h3>
+                <p id="error-message" class="text-gray-400 text-xs sm:text-sm mt-1">Unable to load stream.</p>
                 <button onclick="location.reload()"
-                    class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Retry</button>
+                    class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-xs sm:text-sm">Retry</button>
             </div>
 
-            <div class="controls-overlay absolute bottom-0 left-0 right-0 p-4 opacity-0 flex flex-col gap-2 z-20">
+            <div class="controls-overlay absolute bottom-0 left-0 right-0 p-2 sm:p-4 opacity-0 flex flex-col gap-1 sm:gap-2 z-20">
                 <div class="relative w-full h-2 group/progress cursor-pointer flex items-center"
                     id="progress-container">
                     <div class="absolute w-full h-1 bg-gray-600 rounded-full"></div>
@@ -250,39 +262,40 @@
                         id="progress-thumb" style="left: 0%"></div>
                 </div>
 
+                <!-- RESPONSIVE CONTROL BAR (Gaps and paddings adjust based on screen size) -->
                 <div class="flex items-center justify-between mt-1">
-                    <div class="flex items-center gap-4">
-                        <button id="play-btn" class="hover:text-blue-400 transition-colors"><i data-lucide="play"
-                                class="w-6 h-6 fill-current"></i></button>
-                        <div class="group/vol flex items-center gap-2">
-                            <button id="mute-btn" class="hover:text-blue-400 transition-colors"><i
-                                    data-lucide="volume-2" class="w-6 h-6"></i></button>
-                            <div class="w-0 overflow-hidden group-hover/vol:w-24 transition-all duration-300">
+                    <div class="flex items-center gap-2 sm:gap-4">
+                        <button id="play-btn" class="hover:text-blue-400 transition-colors p-1 sm:p-0"><i data-lucide="play"
+                                class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i></button>
+                        <div class="group/vol flex items-center gap-1 sm:gap-2">
+                            <button id="mute-btn" class="hover:text-blue-400 transition-colors p-1 sm:p-0"><i
+                                    data-lucide="volume-2" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
+                            <div class="w-0 overflow-hidden sm:group-hover/vol:w-24 transition-all duration-300 flex items-center">
                                 <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1"
-                                    class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                                    class="w-16 sm:w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                             </div>
                         </div>
-                        <div class="text-xs text-gray-300 font-mono"><span id="current-time">00:00</span> / <span
+                        <div class="text-[10px] sm:text-xs text-gray-300 font-mono whitespace-nowrap"><span id="current-time">00:00</span> / <span
                                 id="duration">00:00</span></div>
                     </div>
 
-                    <div class="flex items-center gap-3">
-                        <button id="rotate-ccw-btn" class="hover:text-blue-400 transition-colors"><i
-                                data-lucide="rotate-ccw" class="w-5 h-5"></i></button>
-                        <button id="rotate-cw-btn" class="hover:text-blue-400 transition-colors"><i
-                                data-lucide="rotate-cw" class="w-5 h-5"></i></button>
+                    <div class="flex items-center gap-1 sm:gap-3">
+                        <button id="rotate-ccw-btn" class="hover:text-blue-400 transition-colors p-1 sm:p-0"><i
+                                data-lucide="rotate-ccw" class="w-4 h-4 sm:w-5 sm:h-5"></i></button>
+                        <button id="rotate-cw-btn" class="hover:text-blue-400 transition-colors p-1 sm:p-0"><i
+                                data-lucide="rotate-cw" class="w-4 h-4 sm:w-5 sm:h-5"></i></button>
 
                         <div class="relative">
                             <button id="cc-btn"
-                                class="flex items-center gap-1 text-sm font-medium transition-colors px-2 py-1 rounded bg-black/40 border border-transparent hover:border-gray-700 opacity-50 cursor-not-allowed"
+                                class="flex items-center gap-1 text-[10px] sm:text-sm font-medium transition-colors px-1.5 py-1 sm:px-2 sm:py-1 rounded bg-black/40 border border-transparent hover:border-gray-700 opacity-50 cursor-not-allowed"
                                 disabled title="No subtitles found">
-                                <i data-lucide="subtitles" class="w-4 h-4"></i>
+                                <i data-lucide="subtitles" class="w-3 h-3 sm:w-4 sm:h-4"></i>
                             </button>
                             <div id="cc-menu"
-                                class="hidden absolute bottom-full right-0 mb-2 w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
+                                class="hidden absolute bottom-full right-0 mb-2 w-28 sm:w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
                                 <div class="py-1" id="cc-options">
                                     <button
-                                        class="w-full text-left px-4 py-2 text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50 cc-option-btn"
+                                        class="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50 cc-option-btn"
                                         onclick="setSubtitle(-1)">Off</button>
                                 </div>
                             </div>
@@ -290,34 +303,34 @@
 
                         <div class="relative">
                             <button id="quality-btn"
-                                class="flex items-center gap-1 text-sm font-medium hover:text-blue-400 transition-colors px-2 py-1 rounded bg-black/40 border border-transparent hover:border-gray-700">
-                                <i data-lucide="settings" class="w-4 h-4"></i><span
+                                class="flex items-center gap-1 text-[10px] sm:text-sm font-medium hover:text-blue-400 transition-colors px-1.5 py-1 sm:px-2 sm:py-1 rounded bg-black/40 border border-transparent hover:border-gray-700">
+                                <i data-lucide="settings" class="w-3 h-3 sm:w-4 sm:h-4"></i><span
                                     id="current-quality-label">Auto</span>
                             </button>
                             <div id="quality-menu"
-                                class="hidden absolute bottom-full right-0 mb-2 w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
+                                class="hidden absolute bottom-full right-0 mb-2 w-24 sm:w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-30">
                                 <div class="py-1" id="quality-options"></div>
                             </div>
                         </div>
 
-                        <button id="fullscreen-btn" class="hover:text-blue-400 transition-colors"><i
-                                data-lucide="maximize" class="w-5 h-5"></i></button>
+                        <button id="fullscreen-btn" class="hover:text-blue-400 transition-colors p-1 sm:p-0"><i
+                                data-lucide="maximize" class="w-4 h-4 sm:w-5 sm:h-5"></i></button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="mt-6 flex justify-between items-start gap-4">
+        <div class="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-4">
             <div id="status-badge"
-                class="px-3 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-center">
+                class="px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-start sm:self-center">
                 Initializing...</div>
-            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 flex-grow">
-                <h3 class="font-bold text-gray-300 text-sm mb-2">Debug Info</h3>
-                <div class="grid grid-cols-2 gap-4 text-xs font-mono text-gray-400">
-                    <div>Status: <span id="debug-status" class="text-white">-</span></div>
-                    <div>Current Level: <span id="debug-level" class="text-white">-</span></div>
-                    <div>Buffer Length: <span id="debug-buffer" class="text-white">-</span></div>
-                    <div>Codecs: <span id="debug-codecs" class="text-white">-</span></div>
+            <div class="bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-700 flex-grow w-full">
+                <h3 class="font-bold text-gray-300 text-xs sm:text-sm mb-2">Debug Info</h3>
+                <div class="grid grid-cols-2 gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono text-gray-400">
+                    <div class="truncate">Status: <span id="debug-status" class="text-white">-</span></div>
+                    <div class="truncate">Level: <span id="debug-level" class="text-white">-</span></div>
+                    <div class="truncate">Buffer: <span id="debug-buffer" class="text-white">-</span></div>
+                    <div class="truncate">Codecs: <span id="debug-codecs" class="text-white">-</span></div>
                 </div>
             </div>
         </div>
@@ -690,7 +703,7 @@
         function updateStatus(msg) {
             statusBadge.textContent = msg;
             debugStatus.textContent = msg;
-            statusBadge.className = 'px-3 py-1 rounded-full text-xs font-medium border self-center ' +
+            statusBadge.className = 'px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium border self-start sm:self-center ' +
                 (msg.includes('Playing') ? 'bg-green-900 text-green-300 border-green-700' :
                     (msg.includes('Error') ? 'bg-red-900 text-red-300 border-red-700' :
                         'bg-gray-800 text-gray-400 border-gray-700'));
@@ -719,13 +732,13 @@
         playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
 
         video.addEventListener('play', () => {
-            playBtn.innerHTML = '<i data-lucide="pause" class="w-6 h-6 fill-current"></i>';
+            playBtn.innerHTML = '<i data-lucide="pause" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>';
             lucide.createIcons();
             updateStatus('Playing');
         });
 
         video.addEventListener('pause', () => {
-            playBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6 fill-current"></i>';
+            playBtn.innerHTML = '<i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>';
             lucide.createIcons();
             updateStatus('Paused');
         });
@@ -740,7 +753,7 @@
                 if (video.volume > 0.5) icon = 'volume-2';
                 else if (video.volume > 0) icon = 'volume-1';
             }
-            muteBtn.innerHTML = `<i data-lucide="${icon}" class="w-6 h-6"></i>`;
+            muteBtn.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 sm:w-6 sm:h-6"></i>`;
             lucide.createIcons();
         });
 
@@ -806,7 +819,7 @@
             qualityOptions.innerHTML = '';
 
             const autoBtn = document.createElement('button');
-            autoBtn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50';
+            autoBtn.className = 'w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm hover:bg-gray-800 text-blue-400 bg-blue-900/50';
             autoBtn.innerHTML = 'Auto';
             autoBtn.onclick = () => {
                 hls.currentLevel = -1;
@@ -818,7 +831,7 @@
             levels.forEach((level, index) => {
                 const btn = document.createElement('button');
                 const res = Math.min(level.width, level.height);
-                btn.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-800';
+                btn.className = 'w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm hover:bg-gray-800';
                 btn.innerHTML = `${res}p`;
                 btn.onclick = () => {
                     hls.currentLevel = index;
