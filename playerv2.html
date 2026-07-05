@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fromm Web Player - Stream</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #4b5563;
+            height: 4px;
+            border-radius: 4px;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+            margin-top: -4px;
+        }
+
+        input[type=range]::-moz-range-thumb {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        #video {
+            transition: transform 0.3s ease-in-out;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* --- UI OVERLAY LOGIC (YouTube Style) --- */
+        .player-ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            pointer-events: none; /* Let clicks pass through to the wrapper by default */
+            display: flex;
+            flex-col;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s ease;
+            opacity: 0;
+            background: rgba(0, 0, 0, 0.4); /* Darken video slightly when UI is open */
+        }
+
+        /* When UI is active, show the overlay and enable pointer events on buttons */
+        .player-wrapper.ui-active .player-ui-layer {
+            opacity: 1;
+        }
+        
+        .player-wrapper.ui-active .ui-clickable {
+            pointer-events: auto;
+        }
+
+        .controls-bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+            padding: 1rem;
+            pointer-events: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .player-wrapper.ui-active .controls-bottom-bar {
+            transform: translateY(0);
+        }
+
+        /* Auto-hide cursor when UI is hidden */
+        .player-wrapper:not(.ui-active) {
+            cursor: none !important;
+        }
+
+        /* --- RESPONSIVE SUBTITLE FIX --- */
+        .player-wrapper {
+            container-type: inline-size;
+            container-name: player;
+        }
+
+        .custom-cue {
+            background: rgba(0, 0, 0, 0.75);
+            color: #ffffff;
+            font-family: sans-serif;
+            font-size: clamp(1rem, 4cqw, 3.5rem);
+            text-shadow: 1px 1px 2px black;
+            border-radius: 4px;
+            padding: 0.3em 0.6em;
+            display: inline-block;
+            line-height: 1.4;
+        }
+
+        #custom-subtitle-container {
+            bottom: 20px;
+            transition: transform 0.3s ease;
+            z-index: 15;
+        }
+
+        .player-wrapper.ui-active #custom-subtitle-container {
+            transform: translateY(-64px);
+        }
+
+        .player-wrapper:fullscreen {
+            aspect-ratio: auto;
+            border: none !important;
+            border-radius: 0 !important;
+        }
+
+        .player-wrapper:fullscreen #video {
+            object-fit: contain;
+        }
+
+        /* --- MOBILE SPECIFIC CSS FIXES --- */
+        @media (max-width: 640px) {
+            .group\/vol .w-0 { 
+                width: 64px !important; 
+                overflow: visible !important; 
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-2 sm:p-4 font-sans">
+
+    <nav class="w-full max-w-4xl mb-4 p-3 sm:p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow border border-gray-700">
+        <div class="flex gap-3 sm:gap-4 text-sm sm:text-base">
+            <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors">Channels</a>
+            <a href="#" id="back-to-videos" class="text-blue-400 hover:text-blue-300 transition-colors">Videos</a>
+        </div>
+        <div class="flex gap-2 sm:gap-4 items-center">
+            <div id="session-timer" class="hidden flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-[10px] sm:text-xs font-mono text-gray-400 shadow-inner">
+                <i data-lucide="clock" class="w-3 h-3 sm:w-3.5 sm:h-3.5"></i>
+                <span id="time-remaining">--:--</span>
+            </div>
+            <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
+                <i data-lucide="log-out" class="w-4 h-4"></i> <span class="hidden sm:inline">Logout</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="w-full max-w-4xl">
+        <div class="mb-2 sm:mb-4 flex justify-between items-end gap-2">
+            <h1 id="video-title" class="text-lg sm:text-2xl font-bold text-blue-400 truncate w-[70%]">Loading...</h1>
+            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+                <button id="copy-url-btn" class="hidden text-gray-400 hover:text-white transition-colors p-1" title="Copy Shared Link">
+                    <i data-lucide="link" class="w-4 h-4"></i>
+                </button>
+                <p id="post-id-display" class="text-gray-500 text-xs sm:text-sm font-mono"></p>
+            </div>
+        </div>
+
+        <!-- The main clickable wrapper for Single/Double clicks -->
+        <div class="player-wrapper relative bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800 aspect-video ui-active cursor-pointer" id="video-container">
+            <video id="video" class="w-full h-full object-contain" crossorigin="anonymous"></video>
+
+            <div id="custom-subtitle-container" class="absolute left-0 right-0 w-full text-center pointer-events-none"></div>
+
+            <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
+                <div class="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-500"></div>
+                <p id="loader-message" class="mt-4 text-sm sm:text-base text-gray-300">Fetching API...</p>
+            </div>
+
+            <div id="error-display" class="hidden absolute inset-0 flex-col items-center justify-center bg-black/90 z-20 text-center p-6">
+                <i data-lucide="alert-triangle" class="w-10 h-10 sm:w-12 sm:h-12 text-red-500 mb-2"></i>
+                <h3 class="text-base sm:text-lg font-bold text-white">Playback Error</h3>
+                <p id="error-message" class="text-gray-400 text-xs sm:text-sm mt-1">Unable to load stream.</p>
+                <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-xs sm:text-sm ui-clickable">Retry</button>
+            </div>
+
+            <!-- YouTube Style Center Play/Pause -->
+            <div class="player-ui-layer">
+                <button id="center-play-btn" class="ui-clickable bg-black/50 rounded-full p-4 hover:bg-black/70 transition-transform transform hover:scale-110">
+                    <i data-lucide="play" class="w-12 h-12 sm:w-16 sm:h-16 fill-current text-white"></i>
+                </button>
+
+                <!-- Settings Menu Wheel Overlay -->
+                <div id="settings-menu" class="hidden absolute bottom-20 right-4 w-56 sm:w-64 bg-gray-900/95 border border-gray-700 rounded-lg shadow-2xl z-30 ui-clickable overflow-hidden text-sm">
+                    <!-- Rotation Section -->
+                    <div class="p-3 border-b border-gray-700 flex justify-between items-center">
+                        <span class="text-gray-300 font-medium flex items-center gap-2"><i data-lucide="rotate-cw" class="w-4 h-4"></i> Rotation</span>
+                        <div class="flex gap-2">
+                            <button id="wheel-rotate-ccw" class="p-1.5 bg-gray-800 rounded hover:bg-gray-700 hover:text-blue-400"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                            <button id="wheel-rotate-cw" class="p-1.5 bg-gray-800 rounded hover:bg-gray-700 hover:text-blue-400"><i data-lucide="rotate-cw" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <!-- Subtitles List -->
+                    <div class="p-2 border-b border-gray-700 max-h-32 overflow-y-auto no-scrollbar">
+                        <div class="px-2 py-1 text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Subtitles</div>
+                        <div id="wheel-cc-options">
+                            <button class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-800 text-blue-400 bg-blue-900/30 wheel-cc-btn" data-index="-1">Off</button>
+                        </div>
+                    </div>
+                    <!-- Quality List -->
+                    <div class="p-2 max-h-40 overflow-y-auto no-scrollbar">
+                        <div class="px-2 py-1 text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Quality</div>
+                        <div id="wheel-quality-options"></div>
+                    </div>
+                </div>
+
+                <div class="controls-bottom-bar flex flex-col gap-1 sm:gap-2">
+                    <div class="relative w-full h-2 group/progress cursor-pointer flex items-center ui-clickable" id="progress-container">
+                        <div class="absolute w-full h-1 bg-gray-600 rounded-full"></div>
+                        <div id="buffered-bar" class="absolute h-1 bg-gray-400 rounded-full transition-all duration-200" style="width: 0%"></div>
+                        <div id="progress-bar" class="absolute h-1 bg-blue-500 rounded-full transition-all duration-75" style="width: 0%"></div>
+                        <div class="absolute h-3 w-3 bg-white rounded-full shadow opacity-0 group-hover/progress:opacity-100 transition-opacity" id="progress-thumb" style="left: 0%"></div>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-1">
+                        <div class="flex items-center gap-2 sm:gap-4">
+                            <button id="play-btn" class="ui-clickable hover:text-blue-400 transition-colors p-1 sm:p-0"><i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i></button>
+                            <div class="group/vol flex items-center gap-1 sm:gap-2 ui-clickable">
+                                <button id="mute-btn" class="hover:text-blue-400 transition-colors p-1 sm:p-0"><i data-lucide="volume-2" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
+                                <div class="w-0 overflow-hidden sm:group-hover/vol:w-24 transition-all duration-300 flex items-center">
+                                    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" class="w-16 sm:w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                                </div>
+                            </div>
+                            <div class="text-[10px] sm:text-xs text-gray-300 font-mono whitespace-nowrap"><span id="current-time">00:00</span> / <span id="duration">00:00</span></div>
+                        </div>
+
+                        <div class="flex items-center gap-2 sm:gap-4">
+                            <!-- Smart CC Toggle -->
+                            <button id="cc-toggle-btn" class="ui-clickable flex items-center gap-1 transition-colors p-1 sm:p-0 opacity-50 cursor-not-allowed" disabled title="No subtitles found">
+                                <i data-lucide="subtitles" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                            </button>
+
+                            <!-- Settings Wheel -->
+                            <button id="settings-btn" class="ui-clickable hover:text-blue-400 transition-transform transform hover:rotate-90 p-1 sm:p-0">
+                                <i data-lucide="settings" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                            </button>
+
+                            <!-- Picture in Picture (Firefox native API fix) -->
+                            <button id="pip-btn" class="ui-clickable hover:text-blue-400 transition-colors p-1 sm:p-0 hidden" title="Picture-in-Picture">
+                                <i data-lucide="picture-in-picture-2" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                            </button>
+
+                            <!-- Fullscreen -->
+                            <button id="fullscreen-btn" class="ui-clickable hover:text-blue-400 transition-colors p-1 sm:p-0"><i data-lucide="maximize" class="w-5 h-5 sm:w-6 sm:h-6"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-4">
+            <div id="status-badge" class="px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-start sm:self-center">Initializing...</div>
+            <div class="bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-700 flex-grow w-full">
+                <h3 class="font-bold text-gray-300 text-xs sm:text-sm mb-2">Debug Info</h3>
+                <div class="grid grid-cols-2 gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono text-gray-400">
+                    <div class="truncate">Status: <span id="debug-status" class="text-white">-</span></div>
+                    <div class="truncate">Level: <span id="debug-level" class="text-white">-</span></div>
+                    <div class="truncate">Buffer: <span id="debug-buffer" class="text-white">-</span></div>
+                    <div class="truncate">Codecs: <span id="debug-codecs" class="text-white">-</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+
+    <script>
+        lucide.createIcons();
+
+        // --- AUTH & SETUP ---
+        const token = localStorage.getItem('fromm_access_token');
+        if (!token) window.location.replace('index.html');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const channelId = urlParams.get('channel_id');
+        const postId = urlParams.get('post_id');
+
+        if (!channelId || !postId) window.location.replace('channels.html');
+
+        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
+        document.getElementById('post-id-display').textContent = `ID: ${postId}`;
+
+        // --- SESSION TIMER ---
+        function startSessionTimer() {
+            const expiryStr = localStorage.getItem('fromm_token_expiry');
+            if (!expiryStr) return;
+
+            const expiryTimestamp = parseInt(expiryStr, 10);
+            const timerContainer = document.getElementById('session-timer');
+            const timeSpan = document.getElementById('time-remaining');
+            timerContainer.classList.remove('hidden');
+
+            function updateTimer() {
+                const now = Math.floor(Date.now() / 1000);
+                const diff = expiryTimestamp - now;
+
+                if (diff <= 0) {
+                    timeSpan.textContent = "Expired";
+                    timeSpan.className = "text-red-500 font-bold";
+                    timerContainer.classList.add('border-red-500', 'bg-red-900/20');
+                    clearInterval(timerInterval);
+                    return;
+                }
+
+                const hours = Math.floor(diff / 3600);
+                const minutes = Math.floor((diff % 3600) / 60);
+                const seconds = diff % 60;
+
+                if (hours > 0) {
+                    timeSpan.textContent = `${hours}h ${minutes}m`;
+                } else {
+                    timeSpan.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }
+            }
+
+            updateTimer();
+            const timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        startSessionTimer();
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            ['fromm_access_token', 'fromm_refresh_token', 'fromm_resource_token', 'fromm_token_expiry', 'fromm_device_id'].forEach(k => localStorage.removeItem(k));
+            window.location.replace('index.html');
+        });
+
+        // --- DOM Elements ---
+        const video = document.getElementById('video');
+        const loader = document.getElementById('loader');
+        const loaderMessage = document.getElementById('loader-message');
+        const errorDisplay = document.getElementById('error-display');
+        const errorMessage = document.getElementById('error-message');
+        const statusBadge = document.getElementById('status-badge');
+        const debugStatus = document.getElementById('debug-status');
+        const debugCodecs = document.getElementById('debug-codecs');
+        const playerWrapper = document.getElementById('video-container');
+
+        let hls = null;
+        window.cloudFrontParams = "";
+        let availableLanguages = [];
+        let currentSubtitleIndex = -1;
+
+        // Ensure PiP button is shown if supported
+        if (document.pictureInPictureEnabled) {
+            document.getElementById('pip-btn').classList.remove('hidden');
+        }
+
+        // --- THE MAGIC: XHR INTERCEPTOR ---
+        const originalOpen = XMLHttpRequest.prototype.open;
+        window.XMLHttpRequest.prototype.open = function (method, url) {
+            if (typeof url === 'string' && url.includes('channel-contents.frommyarti.com') && window.cloudFrontParams) {
+                if (!url.includes('Signature=')) {
+                    const separator = url.includes('?') ? '&' : '?';
+                    url = url + separator + window.cloudFrontParams;
+                }
+            }
+            return originalOpen.apply(this, arguments);
+        };
+
+        // --- PROGRESS TRACKING ---
+        function saveProgress() {
+            if (video.currentTime > 0 && video.duration > 0) {
+                const progress = { currentTime: video.currentTime, duration: video.duration };
+                localStorage.setItem(`fromm_progress_${postId}`, JSON.stringify(progress));
+            }
+        }
+
+        video.addEventListener('pause', saveProgress);
+        setInterval(() => { if (!video.paused) saveProgress(); }, 20000);
+
+        video.addEventListener('loadedmetadata', () => {
+            const saved = localStorage.getItem(`fromm_progress_${postId}`);
+            if (saved) {
+                try {
+                    const { currentTime, duration } = JSON.parse(saved);
+                    if (currentTime > 0 && currentTime < (duration * 0.98)) {
+                        video.currentTime = currentTime;
+                        updateStatus(`Resumed at ${formatTime(currentTime)}`);
+                    }
+                } catch (e) { }
+            }
+        });
+
+        // --- SUBTITLE SCANNER ---
+        async function loadSubtitles(apiSubtitles = {}) {
+            const ccToggleBtn = document.getElementById('cc-toggle-btn');
+            const wheelCcOptions = document.getElementById('wheel-cc-options');
+            const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+            
+            let mergedSubs = {};
+
+            try {
+                const res = await fetch(`assets/subs_manifest.json?t=${new Date().getTime()}`);
+                if (res.ok) {
+                    const manifest = await res.json();
+                    const availableLangs = manifest[postId];
+                    if (availableLangs && Array.isArray(availableLangs)) {
+                        availableLangs.forEach(code => {
+                            mergedSubs[code] = `assets/subs/${postId}/fromm_${postId}.${code}.vtt`;
+                        });
+                    }
+                }
+            } catch (e) { }
+
+            if (apiSubtitles && typeof apiSubtitles === 'object') {
+                for (const [code, url] of Object.entries(apiSubtitles)) {
+                    let finalUrl = url;
+                    if (window.cloudFrontParams && finalUrl.includes('channel-contents.frommyarti.com')) {
+                        const separator = finalUrl.includes('?') ? '&' : '?';
+                        finalUrl += separator + window.cloudFrontParams;
+                    }
+                    mergedSubs[code] = finalUrl;
+                }
+            }
+
+            availableLanguages = Object.keys(mergedSubs);
+            if (availableLanguages.length === 0) return;
+
+            let trackIndex = 0;
+            for (const code of availableLanguages) {
+                const subUrl = mergedSubs[code];
+                const label = languageNames.of(code) || code.toUpperCase(); 
+
+                const track = document.createElement('track');
+                track.kind = 'subtitles';
+                track.label = label;
+                track.srclang = code;
+                track.src = subUrl;
+                video.appendChild(track);
+
+                // Add to Wheel Settings
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left px-2 py-1.5 rounded hover:bg-gray-800 wheel-cc-btn text-gray-300';
+                btn.innerHTML = label;
+                btn.dataset.index = trackIndex;
+                
+                const currentIndex = trackIndex; 
+                btn.onclick = () => setSubtitle(currentIndex);
+                wheelCcOptions.appendChild(btn);
+                
+                trackIndex++;
+            }
+
+            if (trackIndex > 0) {
+                ccToggleBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                ccToggleBtn.classList.add('hover:text-blue-400');
+                ccToggleBtn.disabled = false;
+                ccToggleBtn.title = "Toggle Subtitles";
+            }
+        }
+
+        // --- SUBTITLE CONTROLS ---
+        function setSubtitle(index) {
+            const tracks = video.textTracks;
+            const subContainer = document.getElementById('custom-subtitle-container');
+            currentSubtitleIndex = index;
+
+            for (let i = 0; i < tracks.length; i++) {
+                tracks[i].mode = 'hidden';
+                tracks[i].oncuechange = null;
+            }
+            subContainer.innerHTML = '';
+
+            if (index >= 0 && tracks[index]) {
+                tracks[index].mode = 'hidden';
+                tracks[index].oncuechange = (e) => {
+                    const activeCues = e.target.activeCues;
+                    if (activeCues && activeCues.length > 0) {
+                        const cuesArray = Array.from(activeCues);
+                        const text = cuesArray.map(c => c.text.replace(/\n/g, '<br>')).join('<br>');
+                        subContainer.innerHTML = `<span class="custom-cue">${text}</span>`;
+                    } else {
+                        subContainer.innerHTML = '';
+                    }
+                };
+            }
+
+            // Update Wheel UI
+            const buttons = document.querySelectorAll('.wheel-cc-btn');
+            buttons.forEach(btn => {
+                if (parseInt(btn.dataset.index) === index) {
+                    btn.classList.add('text-blue-400', 'bg-blue-900/30');
+                    btn.classList.remove('text-gray-300');
+                } else {
+                    btn.classList.remove('text-blue-400', 'bg-blue-900/30');
+                    btn.classList.add('text-gray-300');
+                }
+            });
+
+            // Update bottom bar toggle button UI
+            const ccToggleBtn = document.getElementById('cc-toggle-btn');
+            if (index >= 0) {
+                ccToggleBtn.classList.add('text-blue-400', 'bg-blue-900/50', 'rounded', 'px-1');
+            } else {
+                ccToggleBtn.classList.remove('text-blue-400', 'bg-blue-900/50', 'rounded', 'px-1');
+            }
+        }
+
+        // Smart CC Toggle logic
+        document.getElementById('cc-toggle-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); // prevent UI hide
+            if (currentSubtitleIndex >= 0) {
+                setSubtitle(-1); // Turn off
+            } else {
+                // Find English or fallback to first
+                let targetIndex = 0;
+                const enIndex = availableLanguages.findIndex(code => code.toLowerCase().startsWith('en'));
+                if (enIndex !== -1) targetIndex = enIndex;
+                setSubtitle(targetIndex);
+            }
+        });
+
+        // Wheel off button
+        document.querySelector('.wheel-cc-btn[data-index="-1"]').addEventListener('click', () => setSubtitle(-1));
+
+        // Settings menu toggle
+        const settingsMenu = document.getElementById('settings-menu');
+        document.getElementById('settings-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsMenu.classList.toggle('hidden');
+        });
+
+
+        // --- MAIN LOGIC ---
+        async function main() {
+            try {
+                updateStatus('Fetching video info...');
+
+                const response = await fetch(`https://channel-api.frommyarti.com/media/posts/${postId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': token,
+                        'uuid': crypto.randomUUID(),
+                        'channel-id': channelId,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error("Could not fetch video info.");
+                const postData = await response.json();
+
+                if (postData.success && postData.data && postData.data.post) {
+                    const rawUrl = postData.data.post.url;
+                    const apiSubtitles = postData.data.post.subtitle || {};
+                    
+                    document.getElementById('video-title').textContent = postData.data.post.title;
+
+                    if (postData.data.post.sharedUrl) {
+                        const copyBtn = document.getElementById('copy-url-btn');
+                        copyBtn.classList.remove('hidden');
+                        copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(postData.data.post.sharedUrl);
+                            copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-400"></i>';
+                            lucide.createIcons();
+                            setTimeout(() => {
+                                copyBtn.innerHTML = '<i data-lucide="link" class="w-4 h-4"></i>';
+                                lucide.createIcons();
+                            }, 2000);
+                        };
+                    }
+
+                    loaderMessage.textContent = 'Decrypting Stream URL...';
+
+                    const pattern = /CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/;
+                    const match = rawUrl.match(pattern);
+
+                    if (!match) throw new Error("No video credentials found in URL.");
+
+                    window.cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
+                    await loadSubtitles(apiSubtitles);
+
+                    let streamUrl = rawUrl.split('?')[0] + '?' + window.cloudFrontParams;
+                    
+                    if (postData.data.post.type === "live_record") {
+                        let masterUrl = rawUrl.split('?')[0];
+                        const m3u8Match = masterUrl.match(/\S+\.m3u8/);
+                        if (m3u8Match) {
+                            const baseSplit = m3u8Match[0].split("_");
+                            if (baseSplit.length > 1) {
+                                const lastPart = baseSplit.pop();
+                                const extension = lastPart.split(".").pop();
+                                masterUrl = baseSplit.join("_") + "." + extension;
+                            }
+                        }
+                        streamUrl = masterUrl + '?' + window.cloudFrontParams;
+                    }
+
+                    updateStatus('Initializing player...');
+                    loaderMessage.textContent = 'Loading Stream...';
+                    initPlayer(streamUrl);
+                } else {
+                    throw new Error("Invalid post data returned.");
+                }
+            } catch (error) {
+                console.error(error);
+                showError(error.message);
+            }
+        }
+
+        function initPlayer(streamUrl) {
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    debug: false,
+                    maxBufferLength: 300,
+                    maxMaxBufferLength: 300,
+                    maxBufferSize: 150 * 1000 * 1000
+                });
+
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                    updateStatus('Ready to Play');
+                    loader.style.display = 'none';
+                    debugCodecs.textContent = data.levels[0]?.attrs?.CODECS || 'Unknown';
+                    generateQualityControls(data.levels);
+                    
+                    // Auto-hide UI slightly after loading
+                    setTimeout(() => {
+                        if (!video.paused) playerWrapper.classList.remove('ui-active');
+                    }, 2500);
+
+                    video.play().catch(() => updateStatus('Click to Play'));
+                });
+
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        showError(`HLS Error: ${data.details}`);
+                        hls.destroy();
+                    }
+                });
+            } else {
+                showError("Your browser does not support HLS playback.");
+            }
+        }
+
+        // --- UTILS & CONTROLS ---
+        function updateStatus(msg) {
+            statusBadge.textContent = msg;
+            debugStatus.textContent = msg;
+            statusBadge.className = 'px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium border self-start sm:self-center ' +
+                (msg.includes('Playing') ? 'bg-green-900 text-green-300 border-green-700' :
+                    (msg.includes('Error') ? 'bg-red-900 text-red-300 border-red-700' :
+                        'bg-gray-800 text-gray-400 border-gray-700'));
+        }
+
+        function showError(msg) {
+            loader.style.display = 'none';
+            errorDisplay.classList.remove('hidden');
+            errorDisplay.classList.add('flex');
+            errorMessage.textContent = msg;
+            updateStatus(`Error`);
+        }
+
+        const playBtn = document.getElementById('play-btn');
+        const centerPlayBtn = document.getElementById('center-play-btn');
+        const muteBtn = document.getElementById('mute-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+        const currentTimeEl = document.getElementById('current-time');
+        const durationEl = document.getElementById('duration');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressThumb = document.getElementById('progress-thumb');
+        const bufferedBar = document.getElementById('buffered-bar');
+        const debugBuffer = document.getElementById('debug-buffer');
+
+        // --- PLAYBACK CONTROLS ---
+        function togglePlay() { video.paused ? video.play() : video.pause(); }
+        playBtn.addEventListener('click', togglePlay);
+        centerPlayBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Don't trigger the UI hide
+            togglePlay();
+        });
+
+        video.addEventListener('play', () => {
+            const pauseIcon = '<i data-lucide="pause" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>';
+            const centerPauseIcon = '<i data-lucide="pause" class="w-12 h-12 sm:w-16 sm:h-16 fill-current text-white"></i>';
+            playBtn.innerHTML = pauseIcon;
+            centerPlayBtn.innerHTML = centerPauseIcon;
+            lucide.createIcons();
+            updateStatus('Playing');
+            startIdleTimer();
+        });
+
+        video.addEventListener('pause', () => {
+            const playIcon = '<i data-lucide="play" class="w-5 h-5 sm:w-6 sm:h-6 fill-current"></i>';
+            const centerPlayIcon = '<i data-lucide="play" class="w-12 h-12 sm:w-16 sm:h-16 fill-current text-white"></i>';
+            playBtn.innerHTML = playIcon;
+            centerPlayBtn.innerHTML = centerPlayIcon;
+            lucide.createIcons();
+            updateStatus('Paused');
+            // Show UI persistently when paused
+            playerWrapper.classList.add('ui-active');
+            clearTimeout(idleTimeout);
+        });
+
+        // --- VOLUME ---
+        muteBtn.addEventListener('click', () => { video.muted = !video.muted; });
+        volumeSlider.addEventListener('input', e => { video.muted = false; video.volume = e.target.value; });
+        video.addEventListener('volumechange', () => {
+            volumeSlider.value = video.muted ? 0 : video.volume;
+            let icon = 'volume-x';
+            if (!video.muted) {
+                if (video.volume > 0.5) icon = 'volume-2';
+                else if (video.volume > 0) icon = 'volume-1';
+            }
+            muteBtn.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 sm:w-6 sm:h-6"></i>`;
+            lucide.createIcons();
+        });
+
+        // --- SEEKING & DRAGGING ---
+        let isDragging = false;
+        function handleSeek(e) {
+            if (!video.duration) return;
+            const rect = progressContainer.getBoundingClientRect();
+            let pos = (e.clientX - rect.left) / rect.width;
+            pos = Math.max(0, Math.min(1, pos));
+            const seekTime = pos * video.duration;
+            video.currentTime = seekTime;
+
+            progressBar.style.width = `${pos * 100}%`;
+            progressThumb.style.left = `${pos * 100}%`;
+            currentTimeEl.textContent = formatTime(seekTime);
+        }
+
+        progressContainer.addEventListener('mousedown', e => { isDragging = true; handleSeek(e); });
+        document.addEventListener('mousemove', e => { if (isDragging) handleSeek(e); });
+        document.addEventListener('mouseup', () => { isDragging = false; });
+
+        // --- TIME & BUFFER UPDATES ---
+        video.addEventListener('timeupdate', () => {
+            if (isDragging) return;
+            const progress = (video.currentTime / video.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            progressThumb.style.left = `${progress}%`;
+            currentTimeEl.textContent = formatTime(video.currentTime);
+            if (video.duration) durationEl.textContent = formatTime(video.duration);
+            updateBuffer();
+        });
+
+        function updateBuffer() {
+            if (!video.duration || !video.buffered || !video.buffered.length) {
+                debugBuffer.textContent = '0.00s';
+                return;
+            }
+            let bufferedEnd = video.currentTime;
+            for (let i = 0; i < video.buffered.length; i++) {
+                if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) {
+                    bufferedEnd = video.buffered.end(i);
+                    const percentage = (bufferedEnd / video.duration) * 100;
+                    bufferedBar.style.width = `${percentage}%`;
+                    break;
+                }
+            }
+            debugBuffer.textContent = (bufferedEnd - video.currentTime).toFixed(2) + 's';
+        }
+
+        function formatTime(time) {
+            if (isNaN(time)) return "00:00";
+            const min = Math.floor(time / 60), sec = Math.floor(time % 60);
+            return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        // --- QUALITY CONTROLS ---
+        function generateQualityControls(levels) {
+            const wheelQualityOptions = document.getElementById('wheel-quality-options');
+            wheelQualityOptions.innerHTML = '';
+
+            const createBtn = (label, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left px-2 py-1.5 rounded hover:bg-gray-800 text-gray-300 wheel-qual-btn';
+                btn.innerHTML = label;
+                btn.onclick = () => {
+                    hls.currentLevel = index;
+                    document.querySelectorAll('.wheel-qual-btn').forEach(b => {
+                        b.classList.remove('text-blue-400', 'bg-blue-900/30');
+                        b.classList.add('text-gray-300');
+                    });
+                    btn.classList.add('text-blue-400', 'bg-blue-900/30');
+                    btn.classList.remove('text-gray-300');
+                };
+                return btn;
+            };
+
+            const autoBtn = createBtn('Auto', -1);
+            autoBtn.classList.add('text-blue-400', 'bg-blue-900/30'); // Default selected
+            autoBtn.classList.remove('text-gray-300');
+            wheelQualityOptions.appendChild(autoBtn);
+
+            levels.forEach((level, index) => {
+                const res = Math.min(level.width, level.height);
+                wheelQualityOptions.appendChild(createBtn(`${res}p`, index));
+            });
+        }
+
+        // --- ROTATION ---
+        let currentRot = 0;
+        function updateRotation() {
+            if (currentRot === 90 || currentRot === 270) {
+                const scale = playerWrapper.clientWidth / playerWrapper.clientHeight;
+                video.style.transform = `rotate(${currentRot}deg) scale(${scale})`;
+            } else {
+                video.style.transform = `rotate(${currentRot}deg) scale(1)`;
+            }
+        }
+        document.getElementById('wheel-rotate-cw').addEventListener('click', () => { currentRot = (currentRot + 90) % 360; updateRotation(); });
+        document.getElementById('wheel-rotate-ccw').addEventListener('click', () => { currentRot = (currentRot - 90 + 360) % 360; updateRotation(); });
+        window.addEventListener('resize', updateRotation);
+
+        // --- FULLSCREEN & PIP ---
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                playerWrapper.requestFullscreen().catch(err => console.error(err));
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+        document.getElementById('pip-btn').addEventListener('click', async () => {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled) {
+                    await video.requestPictureInPicture();
+                }
+            } catch (err) {
+                console.error("PiP Error:", err);
+            }
+        });
+
+        // --- YOUTUBE CLICK / DOUBLE CLICK LOGIC ---
+        let clickTimer = null;
+        let idleTimeout = null;
+
+        function startIdleTimer() {
+            clearTimeout(idleTimeout);
+            if (!video.paused) {
+                idleTimeout = setTimeout(() => {
+                    playerWrapper.classList.remove('ui-active');
+                    settingsMenu.classList.add('hidden'); // Close menu on hide
+                }, 3000);
+            }
+        }
+
+        playerWrapper.addEventListener('click', (e) => {
+            // Ignore if clicking on UI buttons
+            if (e.target.closest('.ui-clickable')) {
+                startIdleTimer();
+                return;
+            }
+
+            if (clickTimer === null) {
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+                    // Single click action: Toggle UI
+                    if (playerWrapper.classList.contains('ui-active')) {
+                        playerWrapper.classList.remove('ui-active');
+                        settingsMenu.classList.add('hidden');
+                    } else {
+                        playerWrapper.classList.add('ui-active');
+                        startIdleTimer();
+                    }
+                }, 250); // delay to wait for double click
+            } else {
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                // Double click action: Fullscreen
+                toggleFullscreen();
+            }
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', e => {
+            if (document.activeElement.tagName === 'INPUT') return;
+            switch (e.key.toLowerCase()) {
+                case ' ':
+                case 'k':
+                    e.preventDefault(); togglePlay(); break;
+                case 'f':
+                    e.preventDefault(); toggleFullscreen(); break;
+                case 'm':
+                    e.preventDefault();
+                    video.muted = !video.muted;
+                    document.getElementById('volume-slider').value = video.muted ? 0 : video.volume;
+                    break;
+            }
+        });
+
+        playerWrapper.addEventListener('mousemove', () => {
+            if (!playerWrapper.classList.contains('ui-active')) {
+                playerWrapper.classList.add('ui-active');
+            }
+            startIdleTimer();
+        });
+        
+        playerWrapper.addEventListener('mouseleave', () => {
+            if (!video.paused) playerWrapper.classList.remove('ui-active');
+        });
+
+        // Start
+        main();
+    </script>
+</body>
+
+</html>
