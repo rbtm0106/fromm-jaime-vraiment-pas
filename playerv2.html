@@ -13,14 +13,14 @@
             box-sizing: border-box;
         }
 
-        /* --- VIDEO CONTAINER (YouTube Style) --- */
+        /* --- VIDEO CONTAINER --- */
         .video-container {
             position: relative;
             width: 100%;
             display: flex;
             justify-content: center;
             background-color: black;
-            overflow: hidden; /* Keep wheel inside */
+            overflow: hidden; 
         }
 
         .video-container.theater,
@@ -29,8 +29,11 @@
             width: 100%;
         }
 
-        .video-container.full-screen {
+        .video-container.full-screen,
+        .video-container:fullscreen {
             max-height: 100vh;
+            border: none !important;
+            border-radius: 0 !important;
         }
 
         video {
@@ -40,11 +43,20 @@
             transition: transform 0.3s ease-in-out;
         }
 
-        /* Hide cursor when playing and idle */
+        /* --- UI VISIBILITY LOGIC --- */
+        /* PC: Hide when playing-idle is active */
         .video-container.playing-idle {
             cursor: none !important;
         }
-        .video-container.playing-idle .video-controls-container {
+        .video-container.playing-idle .video-controls-container,
+        .video-container.playing-idle .center-play-overlay {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Mobile: UI is hidden by default while playing unless explicitly tapped */
+        .video-container.touch-device:not(.paused):not(.mobile-ui-active) .video-controls-container,
+        .video-container.touch-device:not(.paused):not(.mobile-ui-active) .center-play-overlay {
             opacity: 0;
             pointer-events: none;
         }
@@ -72,10 +84,12 @@
             pointer-events: none;
         }
 
-        .video-container:hover .video-controls-container,
+        .video-container:not(.touch-device):hover .video-controls-container,
         .video-container:focus-within .video-controls-container,
-        .video-container.paused .video-controls-container {
+        .video-container.paused .video-controls-container,
+        .video-container.mobile-ui-active .video-controls-container {
             opacity: 1;
+            pointer-events: auto;
         }
 
         .video-controls-container .controls {
@@ -117,7 +131,40 @@
         .video-container[data-volume-level="low"] .volume-low-icon { display: block; }
         .video-container[data-volume-level="muted"] .volume-muted-icon { display: block; }
 
-        .video-container.captions-on .cc-icon { color: #60A5FA; /* tailwind blue-400 */ }
+        .video-container.captions-on .cc-icon { color: #60A5FA; }
+
+        /* --- MOBILE CENTER PLAY BUTTON --- */
+        .center-play-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 90;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 150ms ease-in-out;
+            background: rgba(0,0,0,0.3);
+        }
+        
+        .video-container.touch-device.paused .center-play-overlay,
+        .video-container.touch-device.mobile-ui-active .center-play-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .center-play-overlay button {
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
 
         /* --- VOLUME --- */
         .volume-container {
@@ -144,17 +191,11 @@
             border-radius: 50%;
             background: #ffffff;
         }
-        
-        .volume-slider::-moz-range-thumb {
-            height: 12px;
-            width: 12px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: none;
-        }
 
-        .volume-container:hover .volume-slider,
-        .volume-slider:focus-within {
+        .video-container:not(.touch-device) .volume-container:hover .volume-slider,
+        .volume-slider:focus-within,
+        .video-container.touch-device .volume-slider { 
+            /* On mobile, just keep it visible since hover doesn't exist */
             width: 80px;
             transform: scaleX(1);
             margin-left: 8px;
@@ -177,6 +218,10 @@
             cursor: pointer;
             display: flex;
             align-items: center;
+        }
+        
+        .video-container.touch-device .timeline-container {
+            height: 12px; /* Bigger touch target on mobile */
         }
 
         .timeline {
@@ -208,7 +253,6 @@
             background-color: red;
         }
 
-        /* Buffer Bar (Custom addition) */
         .timeline .buffer-bar {
             position: absolute;
             left: 0;
@@ -231,6 +275,10 @@
             transition: transform 150ms ease-in-out;
             aspect-ratio: 1 / 1;
             z-index: 2;
+        }
+
+        .video-container.touch-device .thumb-indicator {
+            --scale: 1.2; /* Always slightly visible on mobile */
         }
 
         .video-container.scrubbing .timeline::before,
@@ -263,12 +311,22 @@
             pointer-events: auto;
         }
 
+        .video-container.touch-device #settings-menu {
+            bottom: 70px; /* Slightly higher on mobile to avoid thumbs */
+            width: 280px; 
+        }
+
         .settings-section {
             border-bottom: 1px solid #374151;
             padding: 8px;
             max-height: 160px;
             overflow-y: auto;
         }
+        
+        .video-container.touch-device .settings-section {
+            padding: 12px 8px; /* Bigger touch targets inside menu */
+        }
+        
         .settings-section:last-child { border-bottom: none; }
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -293,7 +351,6 @@
             left: 0;
             right: 0;
             width: 100%;
-            text-center: center;
             pointer-events: none;
             z-index: 50;
             text-align: center;
@@ -310,10 +367,6 @@
             <a href="#" id="back-to-videos" class="text-blue-400 hover:text-blue-300 transition-colors">Videos</a>
         </div>
         <div class="flex gap-2 sm:gap-4 items-center">
-            <div id="session-timer" class="hidden flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-[10px] sm:text-xs font-mono text-gray-400 shadow-inner">
-                <i data-lucide="clock" class="w-3 h-3"></i>
-                <span id="time-remaining">--:--</span>
-            </div>
             <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-1 text-sm sm:text-base">
                 <i data-lucide="log-out" class="w-4 h-4"></i> <span class="hidden sm:inline">Logout</span>
             </button>
@@ -328,13 +381,21 @@
 
         <!-- YOUTUBE STYLE PLAYER CONTAINER -->
         <div class="video-container paused shadow-2xl rounded-xl border border-gray-800 aspect-video" data-volume-level="high" id="video-wrapper">
-            <video id="video" crossorigin="anonymous"></video>
+            <video id="video" crossorigin="anonymous" playsinline></video>
 
             <div id="custom-subtitle-container"></div>
 
             <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10 pointer-events-none">
                 <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
                 <p id="loader-message" class="mt-4 text-sm text-gray-300">Fetching API...</p>
+            </div>
+            
+            <!-- Mobile Center Play Button -->
+            <div class="center-play-overlay">
+                <button class="center-play-btn">
+                    <i data-lucide="play" class="play-icon w-8 h-8 fill-current"></i>
+                    <i data-lucide="pause" class="pause-icon w-8 h-8 fill-current"></i>
+                </button>
             </div>
 
             <!-- SETTINGS WHEEL POPUP -->
@@ -351,7 +412,7 @@
                 <div class="settings-section">
                     <div class="text-xs text-gray-500 font-bold uppercase mb-1">Subtitles</div>
                     <div id="wheel-cc-options" class="flex flex-col gap-1">
-                        <button class="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-blue-400 bg-blue-900/30 wheel-cc-btn" data-index="-1">Off</button>
+                        <button class="w-full text-left px-2 py-1.5 rounded hover:bg-gray-800 text-blue-400 bg-blue-900/30 wheel-cc-btn" data-index="-1">Off</button>
                     </div>
                 </div>
                 <!-- Quality -->
@@ -370,12 +431,12 @@
                 </div>
                 
                 <div class="controls">
-                    <button class="play-pause-btn">
+                    <button class="play-pause-btn hidden sm:flex">
                         <i data-lucide="play" class="play-icon w-6 h-6 fill-current"></i>
                         <i data-lucide="pause" class="pause-icon w-6 h-6 fill-current"></i>
                     </button>
 
-                    <div class="volume-container">
+                    <div class="volume-container hidden sm:flex">
                         <button class="mute-btn">
                             <i data-lucide="volume-2" class="volume-high-icon w-5 h-5"></i>
                             <i data-lucide="volume-1" class="volume-low-icon w-5 h-5"></i>
@@ -384,7 +445,7 @@
                         <input class="volume-slider" type="range" min="0" max="1" step="any" value="1">
                     </div>
 
-                    <div class="duration-container">
+                    <div class="duration-container ml-2 sm:ml-0">
                         <span class="current-time">00:00</span> / <span class="total-time">00:00</span>
                     </div>
 
@@ -415,10 +476,17 @@
     <script>
         lucide.createIcons();
 
-        // --- DOM Elements ---
+        // --- DEVICE DETECTION (TOUCH VS MOUSE) ---
+        const isTouchDevice = window.matchMedia("(pointer: coarse)").matches || 'ontouchstart' in window;
         const videoContainer = document.querySelector(".video-container");
+        if (isTouchDevice) {
+            videoContainer.classList.add("touch-device");
+        }
+
+        // --- DOM Elements ---
         const video = document.querySelector("video");
         const playPauseBtn = document.querySelector(".play-pause-btn");
+        const centerPlayBtn = document.querySelector(".center-play-btn");
         const fullScreenBtn = document.querySelector(".full-screen-btn");
         const pipBtn = document.querySelector(".pip-btn");
         const muteBtn = document.querySelector(".mute-btn");
@@ -433,7 +501,6 @@
         const timeline = document.querySelector(".timeline");
         
         const loader = document.getElementById('loader');
-        const loaderMessage = document.getElementById('loader-message');
 
         // Context State
         let hls = null;
@@ -444,7 +511,6 @@
         let wasPaused = false;
         let idleTimeout = null;
 
-        // PiP Support
         if (document.pictureInPictureEnabled) pipBtn.classList.remove('hidden');
 
         // --- AUTH ---
@@ -486,15 +552,32 @@
         });
 
         // --- TIMELINE SCRUBBING ---
-        timelineContainer.addEventListener("mousemove", handleTimelineUpdate);
-        timelineContainer.addEventListener("mousedown", toggleScrubbing);
-        document.addEventListener("mouseup", e => { if (isScrubbing) toggleScrubbing(e); });
-        document.addEventListener("mousemove", e => { if (isScrubbing) handleTimelineUpdate(e); });
+        // Touch + Mouse support
+        const handleDragMove = (e) => {
+            if (isScrubbing) {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                handleTimelineUpdate(clientX);
+            }
+        };
+        const handleDragEnd = (e) => {
+            if (isScrubbing) toggleScrubbing(e, false);
+        };
 
-        function toggleScrubbing(e) {
+        timelineContainer.addEventListener("mousedown", (e) => toggleScrubbing(e, true));
+        timelineContainer.addEventListener("touchstart", (e) => toggleScrubbing(e, true), {passive: true});
+        
+        document.addEventListener("mouseup", handleDragEnd);
+        document.addEventListener("touchend", handleDragEnd);
+        
+        document.addEventListener("mousemove", handleDragMove);
+        document.addEventListener("touchmove", handleDragMove, {passive: false});
+
+        function toggleScrubbing(e, starting) {
+            const clientX = e.touches ? e.changedTouches[0].clientX : e.clientX;
             const rect = timelineContainer.getBoundingClientRect();
-            const percent = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-            isScrubbing = (e.buttons & 1) === 1;
+            const percent = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+            
+            isScrubbing = starting;
             videoContainer.classList.toggle("scrubbing", isScrubbing);
             
             if (isScrubbing) {
@@ -504,16 +587,15 @@
                 video.currentTime = percent * video.duration;
                 if (!wasPaused) video.play();
             }
-            handleTimelineUpdate(e);
+            handleTimelineUpdate(clientX);
         }
 
-        function handleTimelineUpdate(e) {
+        function handleTimelineUpdate(clientX) {
             const rect = timelineContainer.getBoundingClientRect();
-            const percent = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+            const percent = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
             timeline.style.setProperty("--preview-position", percent);
 
             if (isScrubbing) {
-                e.preventDefault();
                 timeline.style.setProperty("--progress-position", percent);
             }
         }
@@ -542,11 +624,17 @@
             timeline.style.setProperty("--buffer-position", bufferedEnd / video.duration);
         }
 
+        // BUG FIX: TIME FORMATTING
         function formatTime(time) {
             if (isNaN(time)) return "00:00";
-            const min = Math.floor(time / 60), sec = Math.floor(time % 60), hrs = Math.floor(time / 3600);
-            if (hrs > 0) return `${hrs}:${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
-            return `${min}:${sec.toString().padStart(2, "0")}`;
+            const sec = Math.floor(time % 60);
+            const min = Math.floor((time / 60) % 60); // <-- FIX IS HERE
+            const hrs = Math.floor(time / 3600);
+            
+            if (hrs > 0) {
+                return `${hrs}:${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+            }
+            return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
         }
 
         function skip(seconds) { video.currentTime += seconds; }
@@ -563,19 +651,51 @@
         }
 
         video.addEventListener("volumechange", () => {
-            volumeSlider.value = video.volume;
+            volumeSlider.value = video.muted ? 0 : video.volume;
             let level = video.volume === 0 || video.muted ? "muted" : (video.volume < 0.5 ? "low" : "high");
             videoContainer.dataset.volumeLevel = level;
         });
 
-        // --- PLAY/PAUSE (CLICK ANYWHERE) ---
+
+        // --- CLICK / DOUBLE CLICK (YOUTUBE LOGIC) ---
+        let clickTimer = null;
+
         playPauseBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePlayPause(); });
+        centerPlayBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePlayPause(); });
         
-        // Single click on video toggles play/pause. Stop propagation from controls to prevent double fires.
         videoContainer.addEventListener("click", (e) => {
-            if (e.target.closest('.video-controls-container') || e.target.closest('#settings-menu')) return;
-            togglePlayPause();
-            settingsMenu.classList.add('hidden'); // Clicking video closes settings
+            // Ignore if clicking on buttons or timeline
+            if (e.target.closest('.controls') || e.target.closest('.timeline-container') || e.target.closest('#settings-menu') || e.target.closest('.center-play-btn')) {
+                startIdleTimer();
+                return;
+            }
+
+            settingsMenu.classList.add('hidden'); // Clicking anywhere closes settings
+
+            if (clickTimer === null) {
+                // Wait 250ms to see if a second click happens
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+                    
+                    if (isTouchDevice) {
+                        // On Mobile: single tap toggles UI visibility
+                        videoContainer.classList.toggle("mobile-ui-active");
+                        if (videoContainer.classList.contains("mobile-ui-active")) {
+                            startIdleTimer(); // Hide again after 3 seconds
+                        }
+                    } else {
+                        // On PC: single tap plays/pauses
+                        togglePlayPause();
+                    }
+                }, 250); 
+            } else {
+                // Second click arrived before 250ms! Cancel single click action.
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                
+                // Double tap action: Fullscreen
+                toggleFullScreen();
+            }
         });
 
         function togglePlayPause() {
@@ -597,15 +717,22 @@
         function startIdleTimer() {
             clearTimeout(idleTimeout);
             videoContainer.classList.remove("playing-idle");
+            
             if (!video.paused) {
                 idleTimeout = setTimeout(() => {
                     videoContainer.classList.add("playing-idle");
+                    videoContainer.classList.remove("mobile-ui-active"); // hide on mobile too
                     settingsMenu.classList.add("hidden");
                 }, 3000);
             }
         }
-        videoContainer.addEventListener("mousemove", startIdleTimer);
-        videoContainer.addEventListener("mouseleave", () => { if (!video.paused) videoContainer.classList.add("playing-idle"); });
+        
+        if (!isTouchDevice) {
+            videoContainer.addEventListener("mousemove", startIdleTimer);
+            videoContainer.addEventListener("mouseleave", () => { 
+                if (!video.paused) videoContainer.classList.add("playing-idle"); 
+            });
+        }
 
         // --- FULLSCREEN & PIP ---
         fullScreenBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleFullScreen(); });
@@ -616,8 +743,14 @@
         });
 
         function toggleFullScreen() {
-            if (document.fullscreenElement == null) videoContainer.requestFullscreen();
-            else document.exitFullscreen();
+            if (document.fullscreenElement == null) {
+                if (videoContainer.requestFullscreen) videoContainer.requestFullscreen();
+                else if (videoContainer.webkitRequestFullscreen) videoContainer.webkitRequestFullscreen(); // Safari
+            }
+            else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
         }
 
         videoContainer.addEventListener("fullscreenchange", () => {
@@ -628,6 +761,7 @@
         settingsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             settingsMenu.classList.toggle('hidden');
+            if (!settingsMenu.classList.contains('hidden')) startIdleTimer(); // Reset hide timer when opened
         });
 
         // Rotation
@@ -647,7 +781,7 @@
             
             const createBtn = (label, index) => {
                 const btn = document.createElement('button');
-                btn.className = 'w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-gray-300 wheel-qual-btn';
+                btn.className = 'w-full text-left px-2 py-1.5 rounded hover:bg-gray-800 text-gray-300 wheel-qual-btn';
                 btn.innerHTML = label;
                 btn.onclick = (e) => {
                     e.stopPropagation();
@@ -703,7 +837,7 @@
                 video.appendChild(track);
 
                 const btn = document.createElement('button');
-                btn.className = 'w-full text-left px-2 py-1 rounded hover:bg-gray-800 wheel-cc-btn text-gray-300';
+                btn.className = 'w-full text-left px-2 py-1.5 rounded hover:bg-gray-800 wheel-cc-btn text-gray-300';
                 btn.innerHTML = track.label;
                 btn.dataset.index = index;
                 btn.onclick = (e) => { e.stopPropagation(); setSubtitle(index); };
@@ -786,8 +920,8 @@
                 }
             } catch (err) {
                 console.error(err);
-                loaderMessage.textContent = "Error loading stream.";
                 document.querySelector('.animate-spin').style.display = 'none';
+                document.getElementById('loader-message').textContent = "Error loading stream.";
             }
         }
         main();
