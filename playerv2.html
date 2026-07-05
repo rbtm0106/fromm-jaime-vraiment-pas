@@ -624,8 +624,34 @@
             if (isScrubbing) timeline.style.setProperty("--progress-position", percent);
         }
 
-        video.addEventListener("loadedmetadata", () => { totalTimeElem.textContent = formatTime(video.duration); });
+// --- TIME UPDATE, DURATION & RESUME LOGIC ---
+        video.addEventListener("loadedmetadata", () => { 
+            totalTimeElem.textContent = formatTime(video.duration); 
+            
+            // Resume from last saved position
+            const saved = localStorage.getItem(`fromm_progress_${postId}`);
+            if (saved) {
+                try {
+                    const { currentTime, duration } = JSON.parse(saved);
+                    if (currentTime > 0 && currentTime < (duration * 0.98)) {
+                        video.currentTime = currentTime;
+                        updateStatus(`Resumed at ${formatTime(currentTime)}`);
+                    }
+                } catch (e) { }
+            }
+        });
 
+        // --- PROGRESS TRACKING (SAVE) ---
+        function saveProgress() {
+            if (video.currentTime > 0 && video.duration > 0) {
+                const progress = { currentTime: video.currentTime, duration: video.duration };
+                localStorage.setItem(`fromm_progress_${postId}`, JSON.stringify(progress));
+            }
+        }
+
+        video.addEventListener('pause', saveProgress);
+        setInterval(() => { if (!video.paused) saveProgress(); }, 20000);
+        
         video.addEventListener("timeupdate", () => {
             currentTimeElem.textContent = formatTime(video.currentTime);
             if (!isScrubbing) timeline.style.setProperty("--progress-position", video.currentTime / video.duration);
