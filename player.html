@@ -21,6 +21,10 @@
             justify-content: center;
             background-color: black;
             overflow: hidden; 
+            
+            /* THIS FIXES THE SUBTITLE SIZE (Container Queries) */
+            container-type: inline-size;
+            container-name: player;
         }
 
         .video-container.theater,
@@ -43,7 +47,7 @@
             transition: transform 0.3s ease-in-out;
         }
 
-        /* --- UI VISIBILITY LOGIC (Hides completely when idle, even on pause) --- */
+        /* --- UI VISIBILITY LOGIC --- */
         .video-container.idle {
             cursor: none !important;
         }
@@ -87,6 +91,7 @@
         /* PC hover reveals controls ONLY if not idle */
         .video-container:not(.touch-device):not(.idle):hover .video-controls-container,
         .video-container:not(.idle):focus-within .video-controls-container,
+        .video-container.paused .video-controls-container,
         .video-container.mobile-ui-active:not(.idle) .video-controls-container {
             opacity: 1;
             pointer-events: auto;
@@ -147,7 +152,8 @@
             background: rgba(0,0,0,0.3);
         }
         
-        .video-container.touch-device.mobile-ui-active:not(.idle) .center-play-overlay {
+        .video-container.touch-device.mobile-ui-active:not(.idle) .center-play-overlay,
+        .video-container.touch-device.paused .center-play-overlay {
             opacity: 1;
             pointer-events: auto;
         }
@@ -345,14 +351,22 @@
 
         #custom-subtitle-container {
             position: absolute;
-            bottom: 70px;
+            bottom: 16px; /* Rests low when UI is hidden */
             left: 0;
             right: 0;
             width: 100%;
             pointer-events: none;
             z-index: 50;
             text-align: center;
-            transition: transform 0.3s ease;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        /* Lifts the subtitles up so they don't overlap the control bar */
+        .video-container:not(.touch-device):not(.idle):hover #custom-subtitle-container,
+        .video-container:not(.idle):focus-within #custom-subtitle-container,
+        .video-container.paused #custom-subtitle-container,
+        .video-container.mobile-ui-active:not(.idle) #custom-subtitle-container {
+            transform: translateY(-56px);
         }
     </style>
 </head>
@@ -386,7 +400,6 @@
             </div>
         </div>
 
-        <!-- YOUTUBE STYLE PLAYER CONTAINER -->
         <div class="video-container paused shadow-2xl rounded-xl border border-gray-800 aspect-video" data-volume-level="high" id="video-wrapper">
             <video id="video" crossorigin="anonymous" playsinline></video>
 
@@ -471,7 +484,6 @@
             </div>
         </div>
 
-        <!-- RESTORED: Debug Info & Status -->
         <div class="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-4">
             <div id="status-badge" class="px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-start sm:self-center">Initializing...</div>
             <div class="bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-700 flex-grow w-full">
@@ -537,9 +549,9 @@
         const channelId = urlParams.get('channel_id');
         
         document.getElementById('post-id-display').textContent = `ID: ${postId}`;
-        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`; // Restored link
+        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
 
-        // --- RESTORED: SESSION TIMER ---
+        // --- SESSION TIMER ---
         function startSessionTimer() {
             const expiryStr = localStorage.getItem('fromm_token_expiry');
             if (!expiryStr) return;
@@ -624,11 +636,10 @@
             if (isScrubbing) timeline.style.setProperty("--progress-position", percent);
         }
 
-// --- TIME UPDATE, DURATION & RESUME LOGIC ---
+        // --- TIME UPDATE, DURATION & RESUME ---
         video.addEventListener("loadedmetadata", () => { 
             totalTimeElem.textContent = formatTime(video.duration); 
             
-            // Resume from last saved position
             const saved = localStorage.getItem(`fromm_progress_${postId}`);
             if (saved) {
                 try {
@@ -641,7 +652,6 @@
             }
         });
 
-        // --- PROGRESS TRACKING (SAVE) ---
         function saveProgress() {
             if (video.currentTime > 0 && video.duration > 0) {
                 const progress = { currentTime: video.currentTime, duration: video.duration };
@@ -649,14 +659,14 @@
             }
         }
 
-        video.addEventListener('pause', saveProgress);
-        setInterval(() => { if (!video.paused) saveProgress(); }, 20000);
-        
         video.addEventListener("timeupdate", () => {
             currentTimeElem.textContent = formatTime(video.currentTime);
             if (!isScrubbing) timeline.style.setProperty("--progress-position", video.currentTime / video.duration);
             updateBuffer();
         });
+        
+        video.addEventListener('pause', saveProgress);
+        setInterval(() => { if (!video.paused) saveProgress(); }, 20000);
 
         function updateBuffer() {
             if (!video.duration || !video.buffered.length) {
@@ -719,7 +729,6 @@
                 clearTimeout(clickTimer);
                 clickTimer = null;
                 
-                // RESTORED: Mobile Left/Right Double Tap 10s Skip
                 if (isTouchDevice) {
                     const rect = videoContainer.getBoundingClientRect();
                     const clickX = e.clientX - rect.left;
@@ -743,10 +752,10 @@
         video.addEventListener("pause", () => {
             videoContainer.classList.add("paused");
             updateStatus('Paused');
-            startIdleTimer(); // Ensure idle timer keeps running even when paused
+            startIdleTimer(); 
         });
 
-        // --- IDLE TIMER (Hides completely everywhere) ---
+        // --- IDLE TIMER ---
         function startIdleTimer() {
             clearTimeout(idleTimeout);
             videoContainer.classList.remove("idle");
@@ -900,7 +909,6 @@
                 
                 document.getElementById('video-title').textContent = post.title;
 
-                // RESTORED: Copy Link functionality
                 if (post.sharedUrl) {
                     const copyBtn = document.getElementById('copy-url-btn');
                     copyBtn.classList.remove('hidden');
