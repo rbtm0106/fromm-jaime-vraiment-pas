@@ -1,0 +1,22 @@
+{
+  "ko": {
+    "nav_channels": "채널",
+    "nav_videos": "비디오",
+    "nav_guide": "변환기 가이드",
+    "nav_logout": "로그아웃",
+    "login_email_label": "이메일",
+    "login_password_label": "비밀번호",
+    "btn_check_email": "이메일 확인",
+    "btn_login": "로그인"
+  },
+  "en": {
+    "nav_channels": "Channels",
+    "nav_videos": "Videos",
+    "nav_guide": "Converter Guide",
+    "nav_logout": "Logout",
+    "login_email_label": "Email",
+    "login_password_label": "Password",
+    "btn_check_email": "Check Email",
+    "btn_login": "Login"
+  }
+}
