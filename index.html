@@ -6,31 +6,39 @@
     <title>Fromm Web Player - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans relative">
 
+    <!-- Absolute positioned container for the top right -->
+    <div class="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <select class="lang-selector bg-gray-800 text-gray-300 text-xs sm:text-sm border border-gray-600 rounded-md focus:outline-none focus:border-blue-400 py-1 px-2 cursor-pointer transition-colors hover:bg-gray-700">
+            <option value="ko">🇰🇷 한국어</option>
+            <option value="en">🇺🇸 English</option>
+        </select>
+    </div>
+
+    <!-- Your existing login card -->
     <div class="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
         <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">Fromm j'aime vraiment pas!</h1>
-        
         <form id="login-form">
             <div class="mb-4">
-                <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                <label for="username" class="block text-sm font-medium text-gray-300 mb-2" data-i18n="login_email_label">Email</label>
                 <input type="email" id="username" autocomplete="username" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
             </div>
             
             <div class="mb-4">
-                <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                <label for="password" class="block text-sm font-medium text-gray-300 mb-2" data-i18n="login_password_label">Password</label>
                 <input type="password" id="password" autocomplete="current-password" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required>
             </div>
 
             <div class="mb-4 text-sm text-right">
-                <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none">
+                <button type="button" id="toggle-advanced" class="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none" data-i18n="show_advanced">
                     Show Advanced Options
                 </button>
             </div>
 
             <div id="advanced-options" class="hidden space-y-4 mb-6">
                 <div>
-                    <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2">Device ID (Leave blank to auto-generate)</label>
+                    <label for="deviceId" class="block text-sm font-medium text-gray-300 mb-2" data-i18n="device_id_label">Device ID (Leave blank to auto-generate)</label>
                     <input type="text" id="deviceId" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
             </div>
@@ -39,10 +47,10 @@
 
             <div class="flex gap-2">
                 <button type="button" id="check-email-btn" class="w-1/2 px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors">
-                    Check Email
+                    <span data-i18n="btn_check_email">Check Email</span>
                 </button>
                 <button type="submit" id="login-btn" class="w-1/2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    Login
+                    <span data-i18n="btn_login">Login</span>
                 </button>
             </div>
         </form>
@@ -60,7 +68,8 @@
         document.getElementById('toggle-advanced').addEventListener('click', function() {
             const adv = document.getElementById('advanced-options');
             adv.classList.toggle('hidden');
-            this.textContent = adv.classList.contains('hidden') ? 'Show Advanced Options' : 'Hide Advanced Options';
+            // Toggle text dynamically using the translation function
+            this.textContent = adv.classList.contains('hidden') ? window.t('show_advanced') : window.t('hide_advanced');
         });
 
         function isValidEmail(email) {
@@ -70,6 +79,7 @@
         function showStatus(message, isError = false) {
             const statusEl = document.getElementById('status-message');
             statusEl.textContent = message;
+            statusEl.classList.remove('hidden');
             statusEl.className = `text-sm text-center mb-4 block ${isError ? 'text-red-400' : 'text-green-400'}`;
         }
 
@@ -114,9 +124,11 @@
             const email = document.getElementById('username').value.trim();
             document.getElementById('debug-box').classList.add('hidden');
             
-            if (!isValidEmail(email)) return showStatus("Invalid email format.", true);
+            // Using a fallback string if you don't add "status_invalid_email" to JSON
+            if (!isValidEmail(email)) return showStatus(window.t('status_invalid_email') !== 'status_invalid_email' ? window.t('status_invalid_email') : "Invalid email format.", true);
 
-            showStatus("Checking account...", false);
+            // Fetch string from dictionary
+            showStatus(window.t('status_checking'), false);
 
             try {
                 const response = await fetch('https://account-api.frommyarti.com/auth/exist', {
@@ -129,28 +141,28 @@
                 showDebug(data);
 
                 if (data.success === true) {
-                    showStatus("✅ Account verified. Ready for password.", false);
+                    showStatus(window.t('status_verified'), false);
                     document.getElementById('login-btn').disabled = false;
                 } else {
-                    showStatus("❌ Account not found.", true);
+                    showStatus(window.t('status_not_found'), true);
                 }
             } catch (err) {
-                showStatus("⚠️ Network error.", true);
+                showStatus(window.t('status_network_error'), true);
             }
         });
 
         // --- STEP 2: FULL LOGIN ---
-        // FIX 5: We listen for "submit" on the "login-form" instead of "click" on the button
         document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault(); // FIX 6: This line is critical! It stops the page from refreshing.
+            e.preventDefault(); 
             
             const email = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const deviceId = getOrCreateDeviceId();
             
-            if (!password) return showStatus("Please enter your password.", true);
+            // Fallback for missing password
+            if (!password) return showStatus(window.t('status_enter_password') !== 'status_enter_password' ? window.t('status_enter_password') : "Please enter your password.", true);
 
-            showStatus("Encrypting payload and authenticating...", false);
+            showStatus(window.t('status_encrypting'), false);
 
             try {
                 const encryptedHex = await encryptPassword(password, deviceId);
@@ -174,7 +186,7 @@
                 showDebug(data);
 
                 if (data.success && data.data && data.data.accessToken) {
-                    showStatus("🎉 Login Complete! Tokens retrieved and saved.", false);
+                    showStatus(window.t('status_login_complete'), false);
                     
                     const responseData = data.data;
 
@@ -201,13 +213,15 @@
                     console.log("All session data securely stored in localStorage.");
                     window.location.href = 'channels.html';
                 } else {
-                    showStatus("❌ Invalid password or login failed.", true);
+                    showStatus(window.t('status_invalid_password'), true);
                 }
             } catch (err) {
-                showStatus("⚠️ Encryption or Network error.", true);
+                showStatus(window.t('status_network_error'), true);
                 showDebug({ error: err.message });
             }
         });
     </script>
+    <!-- Your language manager loaded at the very bottom -->
+    <script src="assets/i18n/i18n.js"></script>
 </body>
 </html>

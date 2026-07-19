@@ -2,14 +2,24 @@ const defaultLang = 'ko';
 let currentLang = localStorage.getItem('fromm_lang') || defaultLang;
 let translations = {};
 
+// Global translation function for your JS scripts
+window.t = function(key) {
+    if (translations[currentLang] && translations[currentLang][key]) {
+        return translations[currentLang][key];
+    }
+    return key; // Fallback to the key name if missing
+};
+
 async function initI18n() {
     try {
-        // Fetching from the new dedicated directory
         const res = await fetch('assets/i18n/i18n.json');
         translations = await res.json();
         
         applyTranslations();
         updateSelectUI();
+        
+        // Dispatch an event so other scripts know translations are ready
+        window.dispatchEvent(new Event('i18nLoaded'));
     } catch (e) {
         console.error("Failed to load translations.", e);
     }
@@ -18,22 +28,20 @@ async function initI18n() {
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        const translation = translations[currentLang]?.[key];
-        
-        if (translation) {
-            el.textContent = translation; 
-        }
+        el.textContent = window.t(key);
     });
 }
 
 function setLanguage(lang) {
     currentLang = lang;
-    localStorage.setItem('fromm_lang', lang); // Saves to browser preferences
+    localStorage.setItem('fromm_lang', lang);
     applyTranslations();
     updateSelectUI();
+    
+    // Dispatch event so dynamic JS text can update if needed
+    window.dispatchEvent(new Event('languageChanged'));
 }
 
-// Automatically updates the dropdown to match the saved language
 function updateSelectUI() {
     const langSelects = document.querySelectorAll('.lang-selector');
     langSelects.forEach(select => {
@@ -41,12 +49,10 @@ function updateSelectUI() {
     });
 }
 
-// Listens for changes on any dropdown with the class 'lang-selector'
 document.addEventListener('change', (e) => {
     if (e.target.classList.contains('lang-selector')) {
         setLanguage(e.target.value);
     }
 });
 
-// Run the initialization when the DOM is ready
 document.addEventListener('DOMContentLoaded', initI18n);
