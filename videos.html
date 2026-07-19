@@ -11,20 +11,26 @@
 
     <nav class="w-full max-w-4xl mb-4 p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow-lg border border-gray-700">
         <div class="flex gap-4">
-            <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors">Channels</a>
-            <span class="text-white font-semibold border-b-2 border-green-400">Videos</span>
+            <a href="channels.html" class="text-blue-400 hover:text-blue-300 transition-colors" data-i18n="nav_channels">Channels</a>
+            <span class="text-white font-semibold border-b-2 border-green-400" data-i18n="nav_videos">Videos</span>
         </div>
         <div class="flex gap-4 items-center">
+            <div class="flex gap-2 items-center mr-2 border-r border-gray-700 pr-3">
+                <select class="lang-selector bg-gray-800 text-gray-300 text-xs sm:text-sm border border-gray-600 rounded-md focus:outline-none focus:border-blue-400 py-1 px-2 cursor-pointer transition-colors hover:bg-gray-700">
+                    <option value="ko">🇰🇷 한국어</option>
+                    <option value="en">🇬🇧 English</option>
+                </select>
+            </div>
             <button onclick="window.open('converter.html', '_blank')" class="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 hover:border-blue-400 rounded-full text-xs font-semibold text-blue-400 transition-colors shadow-sm cursor-pointer">
                 <i data-lucide="file-video" class="w-3.5 h-3.5"></i>
-                .ts to .mp4 Guide
+                <span data-i18n="nav_guide">.ts to .mp4 Guide</span>
             </button>
             <div id="session-timer" class="hidden flex items-center gap-1.5 px-3 py-1 bg-gray-900 border border-gray-700 rounded-full text-xs font-mono text-gray-400 shadow-inner">
                 <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                 <span id="time-remaining">--:--</span>
             </div>
             <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
-                <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+                <i data-lucide="log-out" class="w-4 h-4"></i> <span data-i18n="nav_logout">Logout</span>
             </button>
         </div>
     </nav>
@@ -35,21 +41,21 @@
                 <a href="channels.html" class="text-gray-400 hover:text-white transition-colors">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </a>
-                Channel Media
+                <span data-i18n="title_channel_media">Channel Media</span>
             </h1>
 
             <div class="flex gap-6 mb-6 border-b border-gray-700">
-                <button id="tab-lives" onclick="switchTab('live_record')" class="pb-2 font-bold text-blue-400 border-b-2 border-blue-400 transition-colors focus:outline-none">
+                <button id="tab-lives" onclick="switchTab('live_record')" class="pb-2 font-bold text-blue-400 border-b-2 border-blue-400 transition-colors focus:outline-none" data-i18n="tab_live_vods">
                     Live VODs
                 </button>
-                <button id="tab-videos" onclick="switchTab('video')" class="pb-2 font-bold text-gray-400 hover:text-gray-200 border-b-2 border-transparent transition-colors focus:outline-none">
+                <button id="tab-videos" onclick="switchTab('video')" class="pb-2 font-bold text-gray-400 hover:text-gray-200 border-b-2 border-transparent transition-colors focus:outline-none" data-i18n="tab_uploaded_videos">
                     Uploaded Videos
                 </button>
             </div>
 
             <div id="loader" class="flex flex-col items-center justify-center py-12">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-                <p class="text-gray-400">Loading media...</p>
+                <p class="text-gray-400" data-i18n="status_loading_media">Loading media...</p>
             </div>
 
             <div id="error-message" class="hidden text-center py-8">
@@ -62,9 +68,9 @@
 
             <div class="mt-8 flex justify-center">
                 <button id="load-more-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-full shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed hidden">
-                    Load More
+                    <span data-i18n="btn_load_more">Load More</span>
                 </button>
-                <p id="no-more-text" class="text-gray-500 italic hidden mt-4">No more items to load.</p>
+                <p id="no-more-text" class="text-gray-500 italic hidden mt-4" data-i18n="msg_no_more_items">No more items to load.</p>
             </div>
         </div>
     </main>
@@ -72,7 +78,6 @@
     <script>
         lucide.createIcons();
 
-        // --- AUTH & URL PARAMS ---
         const token = localStorage.getItem('fromm_access_token');
         if (!token) window.location.replace('index.html');
 
@@ -83,7 +88,6 @@
             window.location.replace('channels.html');
         }
 
-        // --- SESSION TIMER ---
         function startSessionTimer() {
             const expiryStr = localStorage.getItem('fromm_token_expiry');
             if (!expiryStr) return;
@@ -99,7 +103,7 @@
                 const diff = expiryTimestamp - now;
 
                 if (diff <= 0) {
-                    timeSpan.textContent = "Expired";
+                    timeSpan.textContent = window.t ? window.t('status_expired') : "Expired";
                     timeSpan.className = "text-red-500 font-bold";
                     timerContainer.classList.add('border-red-500', 'bg-red-900/20');
                     clearInterval(timerInterval);
@@ -137,7 +141,6 @@
             window.location.replace('index.html');
         });
 
-        // --- DOWNLOAD STATE MANAGEMENT ---
         function getDownloadedList() {
             return JSON.parse(localStorage.getItem('fromm_downloaded') || '[]');
         }
@@ -159,13 +162,12 @@
             if (list.includes(idStr) && btn) {
                 btn.classList.remove('bg-black/60', 'hover:bg-blue-600', 'text-white');
                 btn.classList.add('bg-green-900/80', 'hover:bg-green-600', 'text-green-400', 'border', 'border-green-600');
-                btn.title = "Downloaded - Click to download again";
+                btn.title = window.t('title_downloaded');
                 btn.innerHTML = '<i data-lucide="check-check" class="w-4 h-4"></i>';
                 lucide.createIcons();
             }
         }
 
-        // --- THE MAIN DOWNLOADER ENGINE (WITH AES-128 DECRYPTION) ---
         async function downloadVideo(postId, channelId) {
             const btn = document.getElementById(`dl-btn-${postId}`);
             const progressContainer = document.getElementById(`progress-container-${postId}`);
@@ -180,7 +182,7 @@
 
             try {
                 progressContainer.classList.remove('hidden');
-                progressStatus.textContent = "Fetching keys...";
+                progressStatus.textContent = window.t('status_fetching_keys');
 
                 const postRes = await fetch(`https://channel-api.frommyarti.com/media/posts/${postId}`, {
                     headers: { 'Authorization': token, 'uuid': crypto.randomUUID(), 'channel-id': channelId }
@@ -192,7 +194,6 @@
                 const match = rawUrl.match(/CloudFront-Key-Pair-Id=([^&]+)&CloudFront-Signature=([^&]+)&CloudFront-Policy=([^&]+)/);
                 if (!match) throw new Error("No keys found in URL.");
                 
-                // STRIPPED PREFIXES: AWS CloudFront rejects query params if the "CloudFront-" prefix is included!
                 const cloudFrontParams = `Key-Pair-Id=${match[1]}&Signature=${match[2]}&Policy=${match[3]}`;
 
                 let masterUrl = rawUrl.split('?')[0];
@@ -200,7 +201,6 @@
                 let subBaseUrl = "";
 
                 if (postType === "live_record") {
-                    // --- LIVE VOD LOGIC (UNTOUCHED) ---
                     const m3u8Match = masterUrl.match(/\S+\.m3u8/);
                     if (m3u8Match) {
                         const baseSplit = m3u8Match[0].split("_");
@@ -216,14 +216,10 @@
                     subText = await (await fetch(subUrl + paramSeparator + cloudFrontParams)).text();
                     subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
                 } else {
-                    // --- VIDEO LOGIC (MASTER PLAYLIST FIX) ---
                     const masterText = await (await fetch(masterUrl + '?' + cloudFrontParams)).text();
-                    
-                    // Filter out the actual sub-playlist streams from the master text
                     const m3u8Lines = masterText.split('\n').filter(line => line.trim().endsWith('.m3u8'));
                     
                     if (m3u8Lines.length > 0) {
-                        // Grab the last one in the list (this is almost always the 1080p/highest resolution)
                         let subUrl = m3u8Lines[m3u8Lines.length - 1].trim();
                         const baseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
                         if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
@@ -232,13 +228,12 @@
                         subText = await (await fetch(subUrl + paramSeparator + cloudFrontParams)).text();
                         subBaseUrl = subUrl.substring(0, subUrl.lastIndexOf('/') + 1);
                     } else {
-                        // Fallback just in case it wasn't a master playlist
                         subText = masterText;
                         subBaseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
                     }
                 }
 
-                progressStatus.textContent = "Parsing playlist...";
+                progressStatus.textContent = window.t('status_parsing_playlist');
 
                 let cryptoKey = null;
                 let globalIv = null;
@@ -250,7 +245,7 @@
                 const keyMatch = subText.match(/#EXT-X-KEY:METHOD=AES-128,URI="([^"]+)"(?:,IV=0x([0-9A-Fa-f]+))?/);
 
                 if (keyMatch) {
-                    progressStatus.textContent = "Fetching AES Decryption Key...";
+                    progressStatus.textContent = window.t('status_fetching_aes');
                     let keyUrl = keyMatch[1];
                     if (!keyUrl.startsWith('http')) keyUrl = subBaseUrl + keyUrl;
 
@@ -288,7 +283,7 @@
                 const totalChunks = tsUrls.length;
                 if (totalChunks === 0) throw new Error("No chunks found");
 
-                progressStatus.textContent = "Downloading & Decrypting...";
+                progressStatus.textContent = window.t('status_downloading_decrypting');
 
                 const CONCURRENCY_LIMIT = 20;
                 let downloadedChunks = new Array(totalChunks);
@@ -332,7 +327,7 @@
                 const workers = Array(CONCURRENCY_LIMIT).fill(null).map(downloadWorker);
                 await Promise.all(workers);
 
-                progressStatus.textContent = "Saving file...";
+                progressStatus.textContent = window.t('status_saving_file');
                 progressText.textContent = "";
 
                 const finalBlob = new Blob(downloadedChunks, { type: 'video/mp2t' });
@@ -352,7 +347,7 @@
 
             } catch (err) {
                 console.error(err);
-                progressStatus.textContent = "Error!";
+                progressStatus.textContent = window.t('status_error');
                 progressStatus.classList.add('text-red-500');
                 progressBar.classList.add('bg-red-500');
             } finally {
@@ -361,7 +356,6 @@
             }
         }
 
-        // --- MASTER STATE ---
         let allPosts = [];
         let subsManifest = {};
         let currentTab = 'live_record';
@@ -382,7 +376,6 @@
             }
         }
 
-        // --- TAB SWITCHER LOGIC ---
         function switchTab(tabType) {
             currentTab = tabType;
 
@@ -400,7 +393,6 @@
             renderGrid();
         }
 
-        // --- RENDER GRID FROM MEMORY ---
         function renderGrid() {
             const grid = document.getElementById('video-grid');
             const noMoreText = document.getElementById('no-more-text');
@@ -476,7 +468,7 @@
             });
 
             if (filteredVideos.length === 0) {
-                grid.innerHTML = `<p class="text-gray-400 col-span-full text-center py-8">No ${currentTab === 'video' ? 'videos' : 'VODs'} found in this batch. Try loading more.</p>`;
+                grid.innerHTML = `<p class="text-gray-400 col-span-full text-center py-8">${window.t('msg_no_media_found')}</p>`;
             } else {
                 grid.innerHTML = html;
             }
@@ -503,7 +495,7 @@
             const loadMoreBtn = document.getElementById('load-more-btn');
 
             if (!loadMore) loader.classList.remove('hidden');
-            if (loadMore) loadMoreBtn.textContent = "Loading...";
+            if (loadMore) loadMoreBtn.querySelector('span').textContent = window.t('status_loading');
 
             try {
                 if (Object.keys(subsManifest).length === 0) {
@@ -552,20 +544,25 @@
                 console.error(err);
                 if (!loadMore) {
                     errorContainer.classList.remove('hidden');
-                    errorContainer.querySelector('p').textContent = "Failed to load videos. " + err.message;
+                    errorContainer.querySelector('p').textContent = window.t('error_failed_load_videos') + err.message;
                 } else {
-                    alert("Failed to load more videos.");
+                    alert(window.t('error_failed_load_more'));
                 }
             } finally {
                 loader.classList.add('hidden');
                 isLoading = false;
-                if (loadMore) loadMoreBtn.textContent = "Load More";
+                if (loadMore) loadMoreBtn.querySelector('span').textContent = window.t('btn_load_more');
             }
         }
 
         document.getElementById('load-more-btn').addEventListener('click', () => fetchVideos(true));
 
-        fetchVideos();
+        // Wait for translations to load before fetching so dynamic text is correct
+        window.addEventListener('i18nLoaded', () => {
+            fetchVideos();
+        });
     </script>
+    <script src="assets/i18n/i18n_data.js"></script>
+    <script src="assets/i18n/i18n.js"></script>
 </body>
 </html>
