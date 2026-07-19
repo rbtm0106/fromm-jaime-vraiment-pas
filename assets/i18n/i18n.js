@@ -1,34 +1,28 @@
 const defaultLang = 'ko';
 let currentLang = localStorage.getItem('fromm_lang') || defaultLang;
-let translations = {};
 
-// Global translation function for your JS scripts
+// Global translation function
 window.t = function(key) {
-    if (translations[currentLang] && translations[currentLang][key]) {
-        return translations[currentLang][key];
+    if (typeof translationsData !== 'undefined' && translationsData[currentLang] && translationsData[currentLang][key]) {
+        return translationsData[currentLang][key];
     }
-    return key; // Fallback to the key name if missing
+    return key; 
 };
 
-async function initI18n() {
-    try {
-        const res = await fetch('assets/i18n/i18n.json');
-        translations = await res.json();
-        
-        applyTranslations();
-        updateSelectUI();
-        
-        // Dispatch an event so other scripts know translations are ready
-        window.dispatchEvent(new Event('i18nLoaded'));
-    } catch (e) {
-        console.error("Failed to load translations.", e);
-    }
+function initI18n() {
+    applyTranslations();
+    updateSelectUI();
+    window.dispatchEvent(new Event('i18nLoaded'));
 }
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        el.textContent = window.t(key);
+        const translation = window.t(key);
+        // Only replace text if a translation was successfully found
+        if (translation !== key) {
+            el.textContent = translation; 
+        }
     });
 }
 
@@ -37,8 +31,6 @@ function setLanguage(lang) {
     localStorage.setItem('fromm_lang', lang);
     applyTranslations();
     updateSelectUI();
-    
-    // Dispatch event so dynamic JS text can update if needed
     window.dispatchEvent(new Event('languageChanged'));
 }
 
@@ -55,4 +47,5 @@ document.addEventListener('change', (e) => {
     }
 });
 
+// Run immediately when the HTML is done loading
 document.addEventListener('DOMContentLoaded', initI18n);
