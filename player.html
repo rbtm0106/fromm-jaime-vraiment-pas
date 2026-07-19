@@ -21,9 +21,7 @@
             justify-content: center;
             background-color: black;
             overflow: hidden; 
-            
-            /* THIS FIXES THE SUBTITLE SIZE (Container Queries) */
-            container-type: inline-size;
+            container-type: size;
             container-name: player;
         }
 
@@ -47,7 +45,7 @@
             transition: transform 0.3s ease-in-out;
         }
 
-        /* --- UI VISIBILITY LOGIC --- */
+        /* --- UI VISIBILITY LOGIC (Hides completely when idle, even on pause) --- */
         .video-container.idle {
             cursor: none !important;
         }
@@ -91,7 +89,6 @@
         /* PC hover reveals controls ONLY if not idle */
         .video-container:not(.touch-device):not(.idle):hover .video-controls-container,
         .video-container:not(.idle):focus-within .video-controls-container,
-        .video-container.paused .video-controls-container,
         .video-container.mobile-ui-active:not(.idle) .video-controls-container {
             opacity: 1;
             pointer-events: auto;
@@ -152,8 +149,7 @@
             background: rgba(0,0,0,0.3);
         }
         
-        .video-container.touch-device.mobile-ui-active:not(.idle) .center-play-overlay,
-        .video-container.touch-device.paused .center-play-overlay {
+        .video-container.touch-device.mobile-ui-active:not(.idle) .center-play-overlay {
             opacity: 1;
             pointer-events: auto;
         }
@@ -285,6 +281,30 @@
             --scale: 1.2; 
         }
 
+        /* --- TIMELINE TOOLTIP --- */
+        .timeline-tooltip {
+            position: absolute;
+            top: -30px;
+            left: calc(var(--preview-position) * 100%);
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 150ms ease-in-out;
+            white-space: nowrap;
+            z-index: 3;
+        }
+
+        .video-container.scrubbing .timeline-tooltip,
+        .timeline-container:hover .timeline-tooltip {
+            opacity: 1;
+        }
+
         .video-container.scrubbing .timeline::before,
         .timeline-container:hover .timeline::before {
             display: block;
@@ -336,22 +356,34 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* --- SUBTITLES OVERLAY --- */
+       /* --- SUBTITLES OVERLAY --- */
         .custom-cue {
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(8, 8, 8, 0.75); 
             color: #ffffff;
-            font-family: sans-serif;
-            font-size: clamp(1rem, 4cqw, 3.5rem);
-            text-shadow: 1px 1px 2px black;
-            border-radius: 4px;
-            padding: 0.3em 0.6em;
+            font-family: "YouTube Noto", Roboto, "Arial Unicode Ms", Arial, Helvetica, sans-serif;
+            
+            /* font-size uses 'cqmin' (Container Query Min). 
+               It looks at the player's width and height, picks the smaller one, and takes 4%. */
+            font-size: clamp(0.8rem, 4cqmin, 2.2rem); 
+            
+            text-shadow: 0 0 2px rgba(0, 0, 0, 0.5); 
+            border-radius: 2px;
+            
+            /* 'em' is relative to the font-size. 
+               If the font gets bigger on a TV, the padding grows perfectly with it. */
+            padding: 0.25em 0.5em; 
+            
             display: inline-block;
-            line-height: 1.4;
+            line-height: 1.3;
         }
 
         #custom-subtitle-container {
             position: absolute;
-            bottom: 16px; /* Rests low when UI is hidden */
+            
+            /* 'cqh' is Container Query Height. 
+               2cqh means it rests 2% above the bottom of the video player. */
+            bottom: 2cqh; 
+            
             left: 0;
             right: 0;
             width: 100%;
@@ -361,12 +393,14 @@
             transition: transform 0.2s ease-in-out;
         }
 
-        /* Lifts the subtitles up so they don't overlap the control bar */
+        /* Lifts the subtitles up dynamically when the control bar appears */
         .video-container:not(.touch-device):not(.idle):hover #custom-subtitle-container,
         .video-container:not(.idle):focus-within #custom-subtitle-container,
         .video-container.paused #custom-subtitle-container,
         .video-container.mobile-ui-active:not(.idle) #custom-subtitle-container {
-            transform: translateY(-56px);
+            
+            /* Moves the text up by 12% of the video container's height to dodge the UI */
+            transform: translateY(-12cqh); 
         }
     </style>
 </head>
@@ -400,6 +434,7 @@
             </div>
         </div>
 
+        <!-- YOUTUBE STYLE PLAYER CONTAINER -->
         <div class="video-container paused shadow-2xl rounded-xl border border-gray-800 aspect-video" data-volume-level="high" id="video-wrapper">
             <video id="video" crossorigin="anonymous" playsinline></video>
 
@@ -442,6 +477,7 @@
                     <div class="timeline" style="--progress-position: 0; --preview-position: 0; --buffer-position: 0;">
                         <div class="buffer-bar"></div>
                         <div class="thumb-indicator"></div>
+                        <div class="timeline-tooltip">00:00</div>
                     </div>
                 </div>
                 
@@ -484,6 +520,7 @@
             </div>
         </div>
 
+        <!-- RESTORED: Debug Info & Status -->
         <div class="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-4">
             <div id="status-badge" class="px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 self-start sm:self-center">Initializing...</div>
             <div class="bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-700 flex-grow w-full">
@@ -549,9 +586,9 @@
         const channelId = urlParams.get('channel_id');
         
         document.getElementById('post-id-display').textContent = `ID: ${postId}`;
-        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
+        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`; // Restored link
 
-        // --- SESSION TIMER ---
+        // --- RESTORED: SESSION TIMER ---
         function startSessionTimer() {
             const expiryStr = localStorage.getItem('fromm_token_expiry');
             if (!expiryStr) return;
@@ -573,8 +610,19 @@
             }
             updateTimer();
             setInterval(updateTimer, 1000);
+
+            
         }
         startSessionTimer();
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            localStorage.removeItem('fromm_access_token');
+            localStorage.removeItem('fromm_refresh_token');
+            localStorage.removeItem('fromm_resource_token');
+            localStorage.removeItem('fromm_token_expiry');
+            localStorage.removeItem('fromm_device_id');
+            window.location.replace('index.html');
+        });
 
         // CloudFront XHR Interceptor
         const originalOpen = XMLHttpRequest.prototype.open;
@@ -629,17 +677,27 @@
             handleTimelineUpdate(clientX);
         }
 
+        // Find your existing elements at the top and add:
+        const timelineTooltip = document.querySelector(".timeline-tooltip");
+
+        // Update your existing function:
         function handleTimelineUpdate(clientX) {
             const rect = timelineContainer.getBoundingClientRect();
             const percent = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
             timeline.style.setProperty("--preview-position", percent);
             if (isScrubbing) timeline.style.setProperty("--progress-position", percent);
+            
+            // --- NEW: Update tooltip text ---
+            if (timelineTooltip && video.duration) {
+                timelineTooltip.textContent = formatTime(percent * video.duration);
+            }
         }
 
-        // --- TIME UPDATE, DURATION & RESUME ---
+// --- TIME UPDATE, DURATION & RESUME LOGIC ---
         video.addEventListener("loadedmetadata", () => { 
             totalTimeElem.textContent = formatTime(video.duration); 
             
+            // Resume from last saved position
             const saved = localStorage.getItem(`fromm_progress_${postId}`);
             if (saved) {
                 try {
@@ -652,6 +710,7 @@
             }
         });
 
+        // --- PROGRESS TRACKING (SAVE) ---
         function saveProgress() {
             if (video.currentTime > 0 && video.duration > 0) {
                 const progress = { currentTime: video.currentTime, duration: video.duration };
@@ -659,14 +718,14 @@
             }
         }
 
+        video.addEventListener('pause', saveProgress);
+        setInterval(() => { if (!video.paused) saveProgress(); }, 20000);
+        
         video.addEventListener("timeupdate", () => {
             currentTimeElem.textContent = formatTime(video.currentTime);
             if (!isScrubbing) timeline.style.setProperty("--progress-position", video.currentTime / video.duration);
             updateBuffer();
         });
-        
-        video.addEventListener('pause', saveProgress);
-        setInterval(() => { if (!video.paused) saveProgress(); }, 20000);
 
         function updateBuffer() {
             if (!video.duration || !video.buffered.length) {
@@ -729,6 +788,7 @@
                 clearTimeout(clickTimer);
                 clickTimer = null;
                 
+                // RESTORED: Mobile Left/Right Double Tap 10s Skip
                 if (isTouchDevice) {
                     const rect = videoContainer.getBoundingClientRect();
                     const clickX = e.clientX - rect.left;
@@ -752,10 +812,10 @@
         video.addEventListener("pause", () => {
             videoContainer.classList.add("paused");
             updateStatus('Paused');
-            startIdleTimer(); 
+            startIdleTimer(); // Ensure idle timer keeps running even when paused
         });
 
-        // --- IDLE TIMER ---
+        // --- IDLE TIMER (Hides completely everywhere) ---
         function startIdleTimer() {
             clearTimeout(idleTimeout);
             videoContainer.classList.remove("idle");
@@ -909,6 +969,7 @@
                 
                 document.getElementById('video-title').textContent = post.title;
 
+                // RESTORED: Copy Link functionality
                 if (post.sharedUrl) {
                     const copyBtn = document.getElementById('copy-url-btn');
                     copyBtn.classList.remove('hidden');
