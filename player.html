@@ -106,8 +106,8 @@
             border: none;
             color: inherit;
             padding: 0;
-            height: 30px;
-            width: 30px;
+            height: 2rem; 
+            width: 2rem;
             font-size: 1.1rem;
             cursor: pointer;
             opacity: .85;
@@ -382,7 +382,7 @@
             
             /* 'cqh' is Container Query Height. 
                2cqh means it rests 2% above the bottom of the video player. */
-            bottom: 2cqh; 
+            bottom: 10cqh; 
             
             left: 0;
             right: 0;
@@ -399,8 +399,8 @@
         .video-container.paused #custom-subtitle-container,
         .video-container.mobile-ui-active:not(.idle) #custom-subtitle-container {
             
-            /* Moves the text up by 12% of the video container's height to dodge the UI */
-            transform: translateY(-12cqh); 
+            /* Lifts text relative to the button size, never using pixels */
+            transform: translateY(-3.5rem); 
         }
     </style>
 </head>
