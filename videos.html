@@ -41,13 +41,17 @@
                 <a href="channels.html" class="text-gray-400 hover:text-white transition-colors">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </a>
+                <!-- This span needs the data-i18n tag -->
                 <span data-i18n="title_channel_media">Channel Media</span>
             </h1>
 
             <div class="flex gap-6 mb-6 border-b border-gray-700">
+                <!-- This button needs the data-i18n tag -->
                 <button id="tab-lives" onclick="switchTab('live_record')" class="pb-2 font-bold text-blue-400 border-b-2 border-blue-400 transition-colors focus:outline-none" data-i18n="tab_live_vods">
                     Live VODs
                 </button>
+                
+                <!-- This button needs the data-i18n tag -->
                 <button id="tab-videos" onclick="switchTab('video')" class="pb-2 font-bold text-gray-400 hover:text-gray-200 border-b-2 border-transparent transition-colors focus:outline-none" data-i18n="tab_uploaded_videos">
                     Uploaded Videos
                 </button>
@@ -422,8 +426,7 @@
                     } catch (e) { }
                 }
 
-                const badgeText = currentTab === 'video' ? 'VIDEO' : 'VOD';
-
+                const badgeText = currentTab === 'video' ? window.t('tab_uploaded_videos') : window.t('tab_live_vods');
                 const hasSubs = subsManifest[video.id] && subsManifest[video.id].length > 0;
                 const ccHtml = hasSubs
                     ? `<div class="absolute top-2 left-2 bg-black/70 border border-blue-900/50 px-2 py-1 rounded text-xs text-blue-400 font-mono flex items-center gap-1 shadow-md z-10"><i data-lucide="subtitles" class="w-3 h-3"></i> CC</div>`
