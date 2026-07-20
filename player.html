@@ -403,7 +403,7 @@
                 <select class="lang-selector bg-gray-800 text-gray-300 text-xs sm:text-sm border border-gray-600 rounded-md focus:outline-none focus:border-blue-400 py-1 px-2 cursor-pointer transition-colors hover:bg-gray-700">
                     <option value="ko">🇰🇷 한국어</option>
                     <option value="en">🇬🇧 English</option>
-                    <option value="hanyang">☘️ 하냥</option>
+                    <option value="hanyang">☘️ 하냥어</option>
 
                 </select>
             </div>
@@ -902,7 +902,7 @@ function startSessionTimer() {
             levels.forEach((level, index) => qualityOptions.appendChild(createBtn(`${Math.min(level.width, level.height)}p`, index)));
         }
 
-        async function loadSubtitles(apiSubtitles = {}) {
+async function loadSubtitles(apiSubtitles = {}) {
             let mergedSubs = {};
             const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
             try {
@@ -935,6 +935,25 @@ function startSessionTimer() {
                 wheelCcOptions.appendChild(btn);
             });
             captionsBtn.classList.remove('opacity-50', 'cursor-not-allowed'); captionsBtn.disabled = false; captionsBtn.title = window.t('settings_subtitles_cc');
+
+            // --- NEW: Auto-select default subtitle ---
+            const langSelector = document.querySelector('.lang-selector');
+            // Try to get the language from the HTML lang attribute, fallback to the select dropdown, then default to 'en'
+            let currentLang = document.documentElement.lang || (langSelector ? langSelector.value : 'en');
+            currentLang = currentLang.split('-')[0].toLowerCase(); 
+
+            // Find a subtitle track that matches the current page language
+            let targetIndex = availableLanguages.findIndex(code => code.toLowerCase().startsWith(currentLang));
+
+            // If no match is found, fallback to English
+            if (targetIndex === -1) {
+                targetIndex = availableLanguages.findIndex(code => code.toLowerCase().startsWith('en'));
+            }
+
+            // Enable the subtitle if a match (or the English fallback) was found
+            if (targetIndex !== -1) {
+                setSubtitle(targetIndex);
+            }
         }
 
         function setSubtitle(index) {
