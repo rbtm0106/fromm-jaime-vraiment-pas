@@ -902,7 +902,7 @@ function startSessionTimer() {
             levels.forEach((level, index) => qualityOptions.appendChild(createBtn(`${Math.min(level.width, level.height)}p`, index)));
         }
 
-async function loadSubtitles(apiSubtitles = {}) {
+        async function loadSubtitles(apiSubtitles = {}) {
             let mergedSubs = {};
             const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
             try {
@@ -935,25 +935,18 @@ async function loadSubtitles(apiSubtitles = {}) {
                 wheelCcOptions.appendChild(btn);
             });
             captionsBtn.classList.remove('opacity-50', 'cursor-not-allowed'); captionsBtn.disabled = false; captionsBtn.title = window.t('settings_subtitles_cc');
-
-            // --- NEW: Auto-select default subtitle ---
+            // --- Find Default Language ---
             const langSelector = document.querySelector('.lang-selector');
-            // Try to get the language from the HTML lang attribute, fallback to the select dropdown, then default to 'en'
             let currentLang = document.documentElement.lang || (langSelector ? langSelector.value : 'en');
             currentLang = currentLang.split('-')[0].toLowerCase(); 
 
-            // Find a subtitle track that matches the current page language
             let targetIndex = availableLanguages.findIndex(code => code.toLowerCase().startsWith(currentLang));
-
-            // If no match is found, fallback to English
             if (targetIndex === -1) {
                 targetIndex = availableLanguages.findIndex(code => code.toLowerCase().startsWith('en'));
             }
 
-            // Enable the subtitle if a match (or the English fallback) was found
-            if (targetIndex !== -1) {
-                setSubtitle(targetIndex);
-            }
+            // Store it globally instead of activating it
+            window.defaultSubtitleIndex = Math.max(0, targetIndex);
         }
 
         function setSubtitle(index) {
@@ -977,7 +970,7 @@ async function loadSubtitles(apiSubtitles = {}) {
         document.querySelector('.wheel-cc-btn[data-index="-1"]').addEventListener('click', (e) => { e.stopPropagation(); setSubtitle(-1); });
         captionsBtn.addEventListener('click', (e) => { 
             e.stopPropagation(); 
-            currentSubtitleIndex >= 0 ? setSubtitle(-1) : setSubtitle(Math.max(0, availableLanguages.findIndex(c => c.toLowerCase().startsWith('en')))); 
+            currentSubtitleIndex >= 0 ? setSubtitle(-1) : setSubtitle(window.defaultSubtitleIndex); 
         });
 
         function updateStatus(msg) {
