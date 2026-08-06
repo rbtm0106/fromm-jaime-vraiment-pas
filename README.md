@@ -1,4 +1,7 @@
-made by gemini
+the webpage: **[https://rbtm0106.github.io/fromm-jaime-vraiment-pas/]**
+
+disclairer: code and front was made by gemini based on a documented understanding of fromm api.
+
 # Fromm j'aime vraiment pas!
 
 A 100% client-side web player to stream Fromm content directly in your browser.
@@ -6,6 +9,7 @@ A 100% client-side web player to stream Fromm content directly in your browser.
 # 🚀 How to use it?
 
 This player runs entirely in your browser. To authorize the video stream (bypassing CORS/Cloudflare security), you need to install a small local extension.
+Note: you need a fromm account to use it. Because of te way duplicate connction work, you will get logout of the webapp the fist time you login here. But once login on this webpage login back to your phone app will not log you out of the webpage.
 
 ## On chrome
 
@@ -16,14 +20,18 @@ This player runs entirely in your browser. To authorize the video stream (bypass
 4. Enable **Developer mode** (top right corner).
 5. Click **Load unpacked** and select the folder you just extracted.
 
+
 ## On firefox
 [https://addons.mozilla.org/addon/fromm-j-aime-vraiment-pas/]
+
+## You can make your own extension for any other webrowser with a prompt to a llm and the 2 file in the chrome extension .zip I mention
 
 ## Step 2: Launch the Player
 1. Go to the web app: **[https://rbtm0106.github.io/fromm-jaime-vraiment-pas/]**
 2. Log in with your credentials (your data remains stored locally in your browser).
 3. Browse your subscriptions and launch a VOD!
 
+___
 
 ## Bonus convert .ts to .mp4:
 1. I made small tool to convert .ts to .mp4 **[https://github.com/rbtm0106/fromm-jaime-vraiment-pas/releases/latest/download/ts_to_mp4.zip]**
