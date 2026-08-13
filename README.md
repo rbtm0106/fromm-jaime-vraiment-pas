@@ -1,3 +1,5 @@
+instalation of the chrome extension (old version): **[https://youtu.be/9MmJEB1P_sg]**
+
 the webpage: **[https://rbtm0106.github.io/fromm-jaime-vraiment-pas/]**
 
 disclairer: code and front was made by gemini based on a documented understanding of fromm api.
