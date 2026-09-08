@@ -14,7 +14,6 @@
             <option value="ko">🇰🇷 한국어</option>
             <option value="en">🇬🇧 English</option>
             <option value="hanyang">☘️ 하냥어</option>
-
         </select>
     </div>
 
@@ -70,7 +69,6 @@
         document.getElementById('toggle-advanced').addEventListener('click', function() {
             const adv = document.getElementById('advanced-options');
             adv.classList.toggle('hidden');
-            // Toggle text dynamically using the translation function
             this.textContent = adv.classList.contains('hidden') ? window.t('show_advanced') : window.t('hide_advanced');
         });
 
@@ -91,10 +89,32 @@
             debugBox.textContent = JSON.stringify(data, null, 2);
         }
 
+        // Helper to read cookies
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift().trim();
+            return null;
+        }
+
         function getOrCreateDeviceId() {
             let id = document.getElementById('deviceId').value.trim();
+            
+            // If the user hasn't typed anything into the input field
             if (!id) {
-                id = crypto.randomUUID();
+                // 1. Check cookies (supports common keys)
+                id = getCookie('deviceId') || getCookie('device_id') || getCookie('fromm_device_id');
+
+                // 2. Check localStorage if no cookie was found
+                if (!id) {
+                    id = localStorage.getItem('fromm_device_id');
+                }
+
+                // 3. Fallback to generating a new random UUID
+                if (!id) {
+                    id = crypto.randomUUID();
+                }
+
                 document.getElementById('deviceId').value = id;
             }
             return id;
@@ -126,10 +146,8 @@
             const email = document.getElementById('username').value.trim();
             document.getElementById('debug-box').classList.add('hidden');
             
-            // Using a fallback string if you don't add "status_invalid_email" to JSON
             if (!isValidEmail(email)) return showStatus(window.t('status_invalid_email') !== 'status_invalid_email' ? window.t('status_invalid_email') : "Invalid email format.", true);
 
-            // Fetch string from dictionary
             showStatus(window.t('status_checking'), false);
 
             try {
@@ -161,7 +179,6 @@
             const password = document.getElementById('password').value;
             const deviceId = getOrCreateDeviceId();
             
-            // Fallback for missing password
             if (!password) return showStatus(window.t('status_enter_password') !== 'status_enter_password' ? window.t('status_enter_password') : "Please enter your password.", true);
 
             showStatus(window.t('status_encrypting'), false);
@@ -179,7 +196,7 @@
                         username: email,
                         password: encryptedHex,
                         deviceId: deviceId,
-                        from: "app",
+                        from: "store",
                         allowUpdateDeviceId: true
                     }) 
                 });
