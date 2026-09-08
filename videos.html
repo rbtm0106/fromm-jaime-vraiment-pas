@@ -119,7 +119,6 @@ function startSessionTimer() {
                     localStorage.removeItem('fromm_refresh_token');
                     localStorage.removeItem('fromm_resource_token');
                     localStorage.removeItem('fromm_token_expiry');
-                    localStorage.removeItem('fromm_device_id');
                     
                     window.location.replace('index.html');
                     return;
@@ -152,7 +151,6 @@ function startSessionTimer() {
             localStorage.removeItem('fromm_refresh_token');
             localStorage.removeItem('fromm_resource_token');
             localStorage.removeItem('fromm_token_expiry');
-            localStorage.removeItem('fromm_device_id');
             window.location.replace('index.html');
         });
 
@@ -567,7 +565,6 @@ function startSessionTimer() {
                     localStorage.removeItem('fromm_refresh_token');
                     localStorage.removeItem('fromm_resource_token');
                     localStorage.removeItem('fromm_token_expiry');
-                    localStorage.removeItem('fromm_device_id');
                     setTimeout(() => window.location.replace('index.html'), 2000);
                 }
             } finally {
