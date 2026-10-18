@@ -8,7 +8,7 @@ A client-side web player to stream Fromm content in your browser.
 
 ## Setup
 
-Because the player runs in your browser, you need a local extension to bypass CORS/Cloudflare restrictions for the video stream.
+Because the player runs in your browser, you need a local extension to bypass cors restrictions for the video stream.
 
 ### 1. Install the Extension
 
