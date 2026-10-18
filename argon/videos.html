@@ -74,16 +74,16 @@
         </div>
     </main>
 
-    <script src="assets/i18n/i18n_data.js"></script>
-    <script src="assets/i18n/i18n.js"></script>
     <script src="assets/common.js"></script>
     <script>
         FrommApp.initPageCommon({ requireLogin: true });
 
         const urlParams = new URLSearchParams(window.location.search);
-        const channelId = urlParams.get('channel_id');
+        const channelId = urlParams.get('channel_id') || sessionStorage.getItem('fromm_channel_id');
         if (!channelId) {
             window.location.replace('channels.html');
+        } else {
+            sessionStorage.setItem('fromm_channel_id', channelId);
         }
 
         let allPosts = [];
@@ -119,7 +119,7 @@
                 .sort((a, b) => b.displayStartAt - a.displayStartAt);
 
             if (filteredVideos.length === 0) {
-                grid.innerHTML = `<p class="text-gray-400 col-span-full text-center py-8">${window.t('msg_no_media_found')}</p>`;
+                grid.innerHTML = `<p class="text-gray-400 col-span-full text-center py-8">${window.t ? window.t('msg_no_media_found') : 'No media found in this batch.'}</p>`;
             } else {
                 const badgeText = currentTab === 'video' ? window.t('tab_uploaded_videos') : window.t('tab_live_vods');
                 const badgeIcon = currentTab === 'video' ? 'film' : 'play-circle';
@@ -149,11 +149,13 @@
                         : '';
 
                     const safeTitle = FrommApp.escapeHtml(video.title);
-                    const safeThumb = FrommApp.escapeHtml(video.thumbnail?.url || '');
+                    const safeThumb = (video.thumbnail && video.thumbnail.url) ? video.thumbnail.url : '';
 
                     return `
                         <div class="relative bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg group hover:border-blue-400 transition-colors" id="video-card-${video.id}">
-                            <a href="player.html?channel_id=${encodeURIComponent(channelId)}&post_id=${encodeURIComponent(video.id)}" class="block">
+                            <a href="player.html?channel_id=${channelId}&post_id=${video.id}" 
+                               onclick="sessionStorage.setItem('fromm_channel_id', '${channelId}'); sessionStorage.setItem('fromm_post_id', '${video.id}')"
+                               class="block">
                                 <div class="relative w-full h-40 overflow-hidden bg-black">
                                     <img src="${safeThumb}" alt="${safeTitle}" loading="lazy" decoding="async" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300">
                                     ${ccHtml}
@@ -170,7 +172,7 @@
                                 </div>
                             </a>
 
-                            <button onclick="FrommApp.downloadVideo('${video.id}', '${channelId}')" id="dl-btn-${video.id}" data-dl-post-id="${video.id}" title="${window.t('btn_download')}" class="absolute top-2 right-2 p-2 bg-black/60 hover:bg-blue-600 rounded-full text-white transition-colors z-10 shadow-md">
+                            <button onclick="FrommApp.downloadVideo('${video.id}', '${channelId}')" id="dl-btn-${video.id}" data-dl-post-id="${video.id}" title="${FrommApp.tr('btn_download')}" class="absolute top-2 right-2 p-2 bg-black/60 hover:bg-blue-600 rounded-full text-white transition-colors z-10 shadow-md">
                                 <i data-lucide="download" class="w-4 h-4"></i>
                             </button>
 
@@ -187,11 +189,10 @@
                     `;
                 }).join('');
 
-                // Batch-update downloaded status without triggering 50 separate Lucide DOM passes
                 filteredVideos.forEach(video => FrommApp.updateButtonUI(video.id, false));
             }
 
-            FrommApp.refreshIcons(grid);
+            FrommApp.refreshIcons();
             grid.classList.remove('hidden');
 
             if (isLast) {
@@ -219,7 +220,7 @@
                     subsManifest = await FrommApp.getSubsManifest();
                 }
 
-                let endpoint = `/media/posts?labelId=0&channelId=${encodeURIComponent(channelId)}&limit=50`;
+                let endpoint = `/media/posts?labelId=0&channelId=${channelId}&limit=50`;
                 if (loadMore && lastPost) {
                     endpoint += `&postId=${lastPost.id}&num=${lastPost.num}&displayStartAt=${lastPost.displayStartAt}`;
                 }
@@ -255,7 +256,9 @@
             if (allPosts.length > 0) renderGrid();
         });
 
-        window.onI18nReady(() => fetchVideos());
+        FrommApp.onReady(() => fetchVideos());
     </script>
+    <script src="assets/i18n/i18n_data.js"></script>
+    <script src="assets/i18n/i18n.js"></script>
 </body>
 </html>
