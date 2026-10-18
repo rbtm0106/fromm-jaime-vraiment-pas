@@ -57,8 +57,6 @@
         </div>
     </main>
 
-    <script src="assets/i18n/i18n_data.js"></script>
-    <script src="assets/i18n/i18n.js"></script>
     <script src="assets/common.js"></script>
     <script>
         FrommApp.initPageCommon({ requireLogin: true });
@@ -83,22 +81,23 @@
 
                     const html = subscribedChannels.map(channel => {
                         const safeName = FrommApp.escapeHtml(channel.channelName);
-                        const safeDefault = channel.searchChannelName?.default
+                        const safeDefault = (channel.searchChannelName && channel.searchChannelName.default)
                             ? `<p class="text-sm text-gray-400 truncate px-1">${FrommApp.escapeHtml(channel.searchChannelName.default)}</p>`
                             : '';
 
                         return `
-                            <a href="videos.html?channel_id=${encodeURIComponent(channel.id)}" 
+                            <a href="videos.html?channel_id=${channel.id}" 
+                               onclick="sessionStorage.setItem('fromm_channel_id', '${channel.id}')"
                                class="block bg-gray-700 p-5 pt-6 rounded-xl hover:bg-gray-600 transition-all duration-200 shadow-lg text-center aspect-square flex flex-col justify-between border border-gray-600 hover:border-blue-400 group">
                                 <div class="w-24 h-24 bg-gray-600 rounded-full mb-4 mx-auto overflow-hidden border-2 border-gray-500 group-hover:border-blue-400 transition-colors flex-shrink-0">
-                                    <img src="${FrommApp.escapeHtml(channel.profileUrl)}" alt="${safeName} profile" loading="lazy" decoding="async" class="w-full h-full object-cover">
+                                    <img src="${channel.profileUrl}" alt="${safeName} profile" loading="lazy" decoding="async" class="w-full h-full object-cover">
                                 </div>
                                 <h2 class="font-bold text-lg text-white px-1 mt-auto truncate" title="${safeName}">
                                     ${safeName}
                                 </h2>
                                 ${safeDefault}
                                 <p class="text-xs text-blue-400 mt-2 font-medium uppercase tracking-wider flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" data-i18n="btn_view_videos">
-                                    ${window.t('btn_view_videos')}
+                                    ${window.t ? window.t('btn_view_videos') : 'View Videos'}
                                 </p>
                             </a>
                         `;
@@ -118,7 +117,9 @@
             }
         }
 
-        window.onI18nReady(fetchChannels);
+        FrommApp.onReady(fetchChannels);
     </script>
+    <script src="assets/i18n/i18n_data.js"></script>
+    <script src="assets/i18n/i18n.js"></script>
 </body>
 </html>

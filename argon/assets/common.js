@@ -2,6 +2,7 @@
  * Shared Core Asset for Fromm Web Player (assets/common.js)
  * Centralizes authentication, session timer, API calls, CloudFront/HLS parsing,
  * subtitle manifest caching, and AES-128 .ts stream downloading.
+ * Works with the original unmodified assets/i18n/i18n.js & i18n_data.js.
  */
 (function () {
     const API_BASE = {
@@ -19,10 +20,74 @@
         SUBS_CACHE: 'fromm_subs_manifest_cache'
     };
 
+    const FALLBACK_TEXT = {
+        btn_download: 'Download Video',
+        btn_copy_link: 'Copy Shared Link',
+        title_downloaded: 'Downloaded - Click to download again',
+        error_session_expired: 'Session expired. Please log in again.',
+        status_fetching_keys: 'Fetching keys...',
+        status_parsing_playlist: 'Parsing playlist...',
+        status_fetching_aes: 'Fetching AES Decryption Key...',
+        status_downloading_decrypting: 'Downloading & Decrypting...',
+        status_saving_file: 'Saving file...',
+        status_error: 'Error'
+    };
+
     let sessionTimerInterval = null;
     let downloadedSet = null;
     let subsManifestMemoryCache = null;
+    let i18nLoadedFired = false;
+    const readyCallbacks = [];
     const activeDownloads = new Set();
+
+    // Track i18nLoaded event regardless of script load order
+    window.addEventListener('i18nLoaded', () => {
+        i18nLoadedFired = true;
+        while (readyCallbacks.length > 0) {
+            const cb = readyCallbacks.shift();
+            try { cb(); } catch (e) { console.error(e); }
+        }
+    });
+
+    function onReady(callback) {
+        if (i18nLoadedFired || window.i18nReady) {
+            callback();
+            return;
+        }
+        let called = false;
+        const wrapped = () => {
+            if (called) return;
+            called = true;
+            callback();
+        };
+        readyCallbacks.push(wrapped);
+
+        // Fallback in case DOMContentLoaded already fired before listener attached
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(() => {
+                if (!called) {
+                    if (typeof window.initI18n === 'function' && !i18nLoadedFired) {
+                        try { window.initI18n(); } catch (e) {}
+                    }
+                    wrapped();
+                }
+            }, 50);
+        } else {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(() => {
+                    if (!called) wrapped();
+                }, 50);
+            });
+        }
+    }
+
+    function tr(key) {
+        if (typeof window.t === 'function') {
+            const val = window.t(key);
+            if (val && val !== key) return val;
+        }
+        return FALLBACK_TEXT[key] || key;
+    }
 
     const kstFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Seoul',
@@ -63,9 +128,9 @@
             : `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     }
 
-    function refreshIcons(root) {
+    function refreshIcons() {
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
-            window.lucide.createIcons(root ? { root } : undefined);
+            window.lucide.createIcons();
         }
     }
 
@@ -176,7 +241,7 @@
 
         const reqHeaders = {
             'Content-Type': 'application/json',
-            'uuid': getOrCreateDeviceId(),
+            'uuid': crypto.randomUUID(),
             ...headers
         };
         if (token) reqHeaders['Authorization'] = token;
@@ -191,7 +256,7 @@
         if (response.status === 401 || response.status === 403) {
             clearSession();
             setTimeout(() => window.location.replace('index.html'), 1500);
-            throw new Error(window.t ? window.t('error_session_expired') : 'Session expired.');
+            throw new Error(tr('error_session_expired'));
         }
 
         if (!response.ok) {
@@ -203,7 +268,7 @@
 
     async function fetchPostDetails(postId, channelId) {
         const data = await apiFetch(`/media/posts/${postId}`, { channelId });
-        if (!data?.data?.post) throw new Error('Invalid post response.');
+        if (!data || !data.data || !data.data.post) throw new Error('Invalid post response.');
         return data.data.post;
     }
 
@@ -241,20 +306,24 @@
             }
         } catch (e) {}
 
-        try {
-            const res = await fetch('assets/subs_manifest.json');
-            if (res.ok) {
-                const data = await res.json();
-                subsManifestMemoryCache = data;
-                try {
-                    sessionStorage.setItem(STORAGE_KEYS.SUBS_CACHE, JSON.stringify({
-                        timestamp: Date.now(),
-                        data
-                    }));
-                } catch (e) {}
-                return data;
-            }
-        } catch (e) {}
+        // Try relative path first, then root /assets/ fallback if testing in a subfolder like /argon/
+        const candidatePaths = ['assets/subs_manifest.json', '/assets/subs_manifest.json'];
+        for (const path of candidatePaths) {
+            try {
+                const res = await fetch(path);
+                if (res.ok) {
+                    const data = await res.json();
+                    subsManifestMemoryCache = data;
+                    try {
+                        sessionStorage.setItem(STORAGE_KEYS.SUBS_CACHE, JSON.stringify({
+                            timestamp: Date.now(),
+                            data
+                        }));
+                    } catch (e) {}
+                    return data;
+                }
+            } catch (e) {}
+        }
 
         subsManifestMemoryCache = {};
         return subsManifestMemoryCache;
@@ -308,14 +377,14 @@
             if (downloaded) {
                 btn.classList.remove('bg-black/60', 'bg-gray-800', 'hover:bg-blue-600', 'hover:bg-gray-700', 'text-white', 'text-gray-300', 'border-gray-700');
                 btn.classList.add('bg-green-900/80', 'hover:bg-green-600', 'text-green-400', 'border', 'border-green-600');
-                btn.title = window.t ? window.t('title_downloaded') : 'Downloaded - Click to download again';
+                btn.title = tr('title_downloaded');
                 btn.innerHTML = labelEl
-                    ? `<i data-lucide="check-check" class="w-4 h-4"></i><span class="dl-btn-label text-xs font-medium">${escapeHtml(labelEl.textContent)}</span>`
+                    ? `<i data-lucide="check-check" class="w-4 h-4"></i><span class="dl-btn-label text-xs font-medium hidden sm:inline">${escapeHtml(labelEl.textContent)}</span>`
                     : '<i data-lucide="check-check" class="w-4 h-4"></i>';
             } else {
-                btn.title = window.t ? window.t('btn_download') : 'Download Video';
+                btn.title = tr('btn_download');
                 btn.innerHTML = labelEl
-                    ? `<i data-lucide="download" class="w-4 h-4"></i><span class="dl-btn-label text-xs font-medium">${escapeHtml(labelEl.textContent)}</span>`
+                    ? `<i data-lucide="download" class="w-4 h-4"></i><span class="dl-btn-label text-xs font-medium hidden sm:inline">${escapeHtml(labelEl.textContent)}</span>`
                     : '<i data-lucide="download" class="w-4 h-4"></i>';
             }
         });
@@ -357,7 +426,7 @@
             btn.disabled = true;
             const labelEl = btn.querySelector('.dl-btn-label');
             btn.innerHTML = labelEl
-                ? `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-400"></i><span class="dl-btn-label text-xs font-medium">${escapeHtml(labelEl.textContent)}</span>`
+                ? `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-400"></i><span class="dl-btn-label text-xs font-medium hidden sm:inline">${escapeHtml(labelEl.textContent)}</span>`
                 : '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-400"></i>';
         });
         refreshIcons();
@@ -369,11 +438,10 @@
                 progressBar.classList.remove('bg-red-500');
                 progressBar.classList.add('bg-blue-500');
                 progressBar.style.width = '0%';
-                progressStatus.textContent = window.t ? window.t('status_fetching_keys') : 'Fetching keys...';
+                progressStatus.textContent = tr('status_fetching_keys');
                 progressText.textContent = '';
             }
 
-            // Reuse cachedPost when available (e.g. inside player.html) to avoid duplicate API requests
             const post = (cachedPost && cachedPost.url) ? cachedPost : await fetchPostDetails(idStr, channelId);
             const rawUrl = post.url;
             const postType = post.type;
@@ -388,7 +456,6 @@
             const m3u8Lines = masterText.split('\n').map(l => l.trim()).filter(l => l.includes('.m3u8') && !l.startsWith('#'));
 
             if (m3u8Lines.length > 0) {
-                // For live_record, first variant is standard; for uploaded video, last variant is highest quality
                 let subUrl = postType === 'live_record' ? m3u8Lines[0] : m3u8Lines[m3u8Lines.length - 1];
                 const baseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
                 if (!subUrl.startsWith('http')) subUrl = baseUrl + subUrl;
@@ -401,7 +468,7 @@
                 subBaseUrl = masterUrl.substring(0, masterUrl.lastIndexOf('/') + 1);
             }
 
-            if (progressStatus) progressStatus.textContent = window.t ? window.t('status_parsing_playlist') : 'Parsing playlist...';
+            if (progressStatus) progressStatus.textContent = tr('status_parsing_playlist');
 
             let cryptoKey = null;
             let globalIv = null;
@@ -412,7 +479,7 @@
 
             const keyMatch = subText.match(/#EXT-X-KEY:METHOD=AES-128,URI="([^"]+)"(?:,IV=0x([0-9A-Fa-f]+))?/);
             if (keyMatch) {
-                if (progressStatus) progressStatus.textContent = window.t ? window.t('status_fetching_aes') : 'Fetching AES Decryption Key...';
+                if (progressStatus) progressStatus.textContent = tr('status_fetching_aes');
                 let keyUrl = keyMatch[1];
                 if (!keyUrl.startsWith('http')) keyUrl = subBaseUrl + keyUrl;
                 if (!keyUrl.includes('Key-Pair-Id')) {
@@ -443,7 +510,7 @@
             const totalChunks = tsUrls.length;
             if (totalChunks === 0) throw new Error('No video segments (.ts) found in playlist.');
 
-            if (progressStatus) progressStatus.textContent = window.t ? window.t('status_downloading_decrypting') : 'Downloading & Decrypting...';
+            if (progressStatus) progressStatus.textContent = tr('status_downloading_decrypting');
             if (progressText) progressText.textContent = `0 / ${totalChunks}`;
 
             const CONCURRENCY_LIMIT = 20;
@@ -490,7 +557,7 @@
             const workerCount = Math.min(CONCURRENCY_LIMIT, totalChunks);
             await Promise.all(Array.from({ length: workerCount }, () => downloadWorker()));
 
-            if (progressStatus) progressStatus.textContent = window.t ? window.t('status_saving_file') : 'Saving file...';
+            if (progressStatus) progressStatus.textContent = tr('status_saving_file');
             if (progressText) progressText.textContent = '';
 
             const finalBlob = new Blob(downloadedChunks, { type: 'video/mp2t' });
@@ -509,7 +576,7 @@
         } catch (err) {
             console.error('Download error:', err);
             if (progressStatus) {
-                progressStatus.textContent = window.t ? window.t('status_error') : 'Error';
+                progressStatus.textContent = tr('status_error');
                 progressStatus.classList.add('text-red-500');
             }
             if (progressBar) {
@@ -523,10 +590,11 @@
         }
     }
 
-    // Expose shared namespace and backwards-compatible globals
     window.FrommApp = {
         API_BASE,
         STORAGE_KEYS,
+        onReady,
+        tr,
         escapeHtml,
         formatKST,
         formatTime,
@@ -551,6 +619,7 @@
         downloadVideo
     };
 
+    window.onI18nReady = onReady;
     window.startSessionTimer = startSessionTimer;
     window.downloadVideo = downloadVideo;
     window.updateButtonUI = updateButtonUI;

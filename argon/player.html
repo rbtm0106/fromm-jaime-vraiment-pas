@@ -422,10 +422,10 @@
         <div class="mb-2 sm:mb-4 flex justify-between items-center gap-2">
             <h1 id="video-title" class="text-lg sm:text-2xl font-bold text-blue-400 truncate flex-1"></h1>
             <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-                <button id="copy-url-btn" class="hidden text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-2.5 py-1.5 transition-colors flex items-center gap-1.5" data-i18n-title="btn_copy_link" title="Copy Shared Link">
+                <button id="copy-url-btn" class="hidden text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-2.5 py-1.5 transition-colors flex items-center gap-1.5" title="Copy Shared Link">
                     <i data-lucide="link" class="w-4 h-4"></i>
                 </button>
-                <button id="header-dl-btn" class="bg-gray-800 hover:bg-blue-600 text-gray-200 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5 shadow-sm" data-i18n-title="btn_download" title="Download Video">
+                <button id="header-dl-btn" class="bg-gray-800 hover:bg-blue-600 text-gray-200 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5 shadow-sm" title="Download Video">
                     <i data-lucide="download" class="w-4 h-4"></i>
                     <span class="dl-btn-label text-xs font-medium hidden sm:inline" data-i18n="btn_download">Download Video</span>
                 </button>
@@ -433,7 +433,7 @@
             </div>
         </div>
 
-        <!-- Download Progress Banner (Shared by Header & Player Control Bar Download Buttons) -->
+        <!-- Download Progress Banner -->
         <div id="player-progress-container" class="hidden mb-3 bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
             <div class="text-xs text-blue-400 font-mono mb-1.5 flex justify-between items-center">
                 <span id="player-progress-status">Downloading...</span>
@@ -509,7 +509,7 @@
                         <span class="current-time">00:00</span> / <span class="total-time">00:00</span>
                     </div>
 
-                    <button class="dl-control-btn" id="control-dl-btn" data-i18n-title="btn_download" title="Download Video">
+                    <button class="dl-control-btn" id="control-dl-btn" title="Download Video">
                         <i data-lucide="download" class="w-5 h-5"></i>
                     </button>
 
@@ -548,8 +548,6 @@
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
-    <script src="assets/i18n/i18n_data.js"></script>
-    <script src="assets/i18n/i18n.js"></script>
     <script src="assets/common.js"></script>
 
     <script>
@@ -599,23 +597,24 @@
 
         // --- URL PARAMS & DOWNLOAD BINDINGS ---
         const urlParams = new URLSearchParams(window.location.search);
-        const postId = urlParams.get('post_id');
-        const channelId = urlParams.get('channel_id');
+        const postId = urlParams.get('post_id') || sessionStorage.getItem('fromm_post_id');
+        const channelId = urlParams.get('channel_id') || sessionStorage.getItem('fromm_channel_id');
 
         if (!postId || !channelId) {
             window.location.replace('channels.html');
+        } else {
+            sessionStorage.setItem('fromm_post_id', postId);
+            sessionStorage.setItem('fromm_channel_id', channelId);
         }
 
         document.getElementById('post-id-display').textContent = `ID: ${postId}`;
-        document.getElementById('back-to-videos').href = `videos.html?channel_id=${encodeURIComponent(channelId)}`;
+        document.getElementById('back-to-videos').href = `videos.html?channel_id=${channelId}`;
 
-        // Bind both header and player control bar download buttons to shared downloader
         headerDlBtn.dataset.dlPostId = postId;
         controlDlBtn.dataset.dlPostId = postId;
 
         function handlePlayerDownload(e) {
             e.stopPropagation();
-            // Pass already-fetched currentPost so common.js skips redundant /media/posts/{postId} fetch
             FrommApp.downloadVideo(postId, channelId, currentPost);
         }
 
@@ -985,6 +984,8 @@
         async function main() {
             document.getElementById('captions-toggle-btn').title = window.t('settings_no_subtitles');
             document.getElementById('video-title').textContent = window.t('status_fetching_info');
+            const dlLabel = headerDlBtn.querySelector('.dl-btn-label');
+            if (dlLabel) dlLabel.textContent = FrommApp.tr('btn_download');
             FrommApp.updateButtonUI(postId, true);
 
             try {
@@ -1000,10 +1001,10 @@
                     copyBtn.onclick = () => {
                         navigator.clipboard.writeText(post.sharedUrl);
                         copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-400"></i>';
-                        FrommApp.refreshIcons(copyBtn);
+                        FrommApp.refreshIcons();
                         setTimeout(() => {
                             copyBtn.innerHTML = '<i data-lucide="link" class="w-4 h-4"></i>';
-                            FrommApp.refreshIcons(copyBtn);
+                            FrommApp.refreshIcons();
                         }, 2000);
                     };
                 }
@@ -1040,7 +1041,9 @@
             }
         }
 
-        window.onI18nReady(main);
+        FrommApp.onReady(main);
     </script>
+    <script src="assets/i18n/i18n_data.js"></script>
+    <script src="assets/i18n/i18n.js"></script>
 </body>
 </html>
