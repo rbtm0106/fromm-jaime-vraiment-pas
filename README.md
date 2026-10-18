@@ -26,7 +26,7 @@ Because the player runs in your browser, you need a local extension to bypass co
 ### 2. Log In
 1. Go to the [Web Player](https://rbtm0106.github.io/fromm-jaime-vraiment-pas/) and log in with your Fromm account (credentials stay stored locally in your browser).
 
-> **Note on sessions:** Logging in here will log you out of your phone app the first time. However, once you are logged in on this webpage, logging back into your phone app won't kick you out of the web player.
+> **Note on sessions:** Logging in here might log you out of your phone app the first time. However, once you are logged in on this webpage, logging back into your phone app won't kick you out of the web player.
 
 ---
 
